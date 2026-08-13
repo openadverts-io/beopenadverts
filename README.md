@@ -1,149 +1,147 @@
-# OpenAdverts — EIP-2535 Diamond Protocol
+# OpenAdverts Protocol — Smart Contracts
 
-OpenAdverts is a signature-based advertising-rewards protocol built on the [EIP-2535 Diamond Standard](https://github.com/ethereum/EIPs/issues/2535). A central Diamond aggregates the governance, affiliate, advertiser, and payout facets; individual ad campaigns are deployed as standalone `OpenAdvertsAdvertPOL` (native POL) and `OpenAdvertsAdvertUSDC` (ERC-20 USDC) contracts via factory facets. OpenAdverts's backend authorises viewer engagement with signed proofs, which affiliates submit on-chain via `processReward` to distribute each bounty to the viewer, the affiliate, and any third parties.
+OpenAdverts (OAD) is an on-chain advertising-rewards protocol built on the [EIP-2535 Diamond standard](https://eips.ethereum.org/EIPS/eip-2535). A single `Diamond` proxy delegates to modular facets covering the OAD token, advertiser and affiliate registries, signature-verified reward payouts, and token-holder governance. Individual ad campaigns are deployed as standalone `OpenAdvertsAdvertPOL` (native POL) and `OpenAdvertsAdvertUSDC` (ERC-20 USDC) contracts through factory facets.
 
-## Diamond implementation
+- **Token:** OAD — fixed supply of 21,000,000, custom storage (not OZ-inherited), with POL/USDC dividend accrual for holders.
+- **Payments:** campaigns are funded in native POL or USDC; USDC minimums are derived from a Chainlink POL/USD feed plus a governance-set currency premium.
+- **Proof of engagement:** the backend signs viewer engagement; affiliates submit signature batches (up to 200) to `processReward`, which verifies each signature against the protocol signing key and splits every bounty between the viewer, the affiliate, and up to six third parties.
+- **Governance:** token-weighted proposals (parameter/quota changes and facet upgrades) with a FOR-only quorum, plus a permissionless admin-election flow.
+- **Upgrades:** owner-direct `diamondCut` during a one-time bootstrap window, then governance-only via `FacetProposal`.
 
-This repository builds on the diamond-3-hardhat reference implementation of EIP-2535. To learn about other implementations go here: https://github.com/mudgen/diamond
+## Architecture at a glance
 
-The standard loupe functions have been gas-optimized in this implementation and can be called in on-chain transactions. However keep in mind that a diamond can have any number of functions and facets so it is still possible to get out-of-gas errors when calling loupe functions. Except for the `facetAddress` loupe function which has a fixed gas cost.
+| Component | Role |
+| --- | --- |
+| `Diamond` | Proxy: `fallback` delegatecalls facets; constructor registers `diamondCut` |
+| `DiamondCutFacet` | Add/replace/remove selectors (owner, bootstrap-gated) |
+| `DiamondLoupeFacet` | EIP-2535 introspection |
+| `OwnershipFacet` | ERC-173 ownership |
+| `OpenAdvertsTokenFacet` | OAD token, POL/USDC dividend accrual, `finalizeBootstrap` |
+| `OpenAdvertsAdvertisersFacet` / `OpenAdvertsAdvertisersVotingFacet` | Advertiser & campaign registry; community approval/denial voting |
+| `OpenAdvertsAffiliatesFacet` / `OpenAdvertsAffiliatesVotingFacet` | Affiliate (publisher) registry; approval/denial voting |
+| `OpenAdvertsGovernanceFacet` | Quota & facet proposals, voting, admin elections |
+| `OpenAdvertsPayoutFacet` | Signature verification and reward distribution/claim |
+| `OpenAdvertsClaimGasFloorFacet` | Owner-set claim-gas floor assumptions (bounty profitability guard) |
+| `OpenAdvertsAdvertPOLFactoryFacet` / `OpenAdvertsAdvertUSDCFactoryFacet` / `OpenAdvertsAdvertUSDCHelperFacet` | Deploy per-campaign advert contracts |
+| `OpenAdvertsAdvertUSDCPriceFacet` | Chainlink POL/USD conversion and USDC minimum calculations |
+| `OpenAdvertsQueryFacet` / `OpenAdvertsQueryV2Facet` | Batched read aggregators for frontends |
+| `OpenAdvertsSignatureGateFacet` | Website-origin signature gate on prospect creation |
+| `OpenAdvertsTimelockFacet` | Owner-config timelock (queue → wait → execute) |
+| `OpenAdvertsPauseFacet` | System-wide emergency pause |
+| `OpenAdvertsAdvertPOL` / `OpenAdvertsAdvertUSDC` | Standalone per-campaign contracts deployed by the factory facets |
 
-**Note:** The loupe functions in DiamondLoupeFacet.sol MUST be added to a diamond and are required by the EIP-2535 Diamonds standard.
+## Campaign lifecycle & rewards
 
-## Installation
+1. **Create.** An advertiser funds a prospect campaign in POL or USDC via a factory facet. Creation entrypoints are gated by a website-origin backend signature (one-time UID + deadline, replay-protected).
+2. **Approve.** Token holders vote to approve or deny prospective campaigns and affiliates. Approved affiliates (publishers) may then serve approved campaigns.
+3. **Engage & prove.** The backend signs viewer engagement proofs. Affiliates collect them and submit a batch (up to 200 signatures) to the campaign contract's `processReward`, which forwards to the Diamond for verification against the protocol signing key.
+4. **Distribute.** Each bounty is split between the viewer, the affiliate, and up to six third parties. A protocol commission (default 10%) is divided among the admin, the storage provider, and the OAD holder dividend pool. A failed transfer is escrowed for later pull rather than reverting the whole batch.
 
-1. Clone this repo:
+USDC campaign minimums are computed as the POL-equivalent (via the Chainlink feed) plus a governance-controlled currency premium (genesis default 200%), which cushions POL/USD volatility so USDC claims stay profitable to withdraw.
+
+## Governance
+
+- **Proposal types.** *Quota proposals* adjust economic and timing parameters; *facet proposals* add, replace, or remove diamond functions.
+- **Voting weight** is each holder's token balance snapshotted at proposal creation, which neutralizes flash-loan and borrow-to-vote attacks.
+- **Quorum is measured on SUPPORT (FOR) votes only.** A proposal passes when support exceeds the quorum threshold *and* outnumbers the deny votes, so a deny vote can never push a proposal over quorum.
+- **`ratifyUpgrade()` is permissionless** after the voting deadline and never reverts on quorum/support: it applies a passed proposal or clears a failed one, so the single-proposal queue can never brick.
+- **`revokeProposal()`** is owner-only and restricted to the voting window; once voting ends, the outcome belongs to the token holders.
+- **Admin election.** `applyAsNewAdmin` → token-holder vote → `ratifyNewAdmin`, with a permissionless `clearFailedElection` when no candidate meets quorum, so ownership transfer cannot get stuck.
+
+## Upgrade & bootstrap model
+
+Two upgrade paths exist:
+
+1. **Owner-direct `diamondCut`** — available only during the *bootstrap window*. A one-way latch (`OpenAdvertsTokenFacet.finalizeBootstrap()`) permanently closes it; `scripts/deploy.js` calls this at the end of a live-network deploy. After finalization, the owner path of `DiamondCutFacet.diamondCut` reverts.
+2. **Governance `FacetProposal`** — created by the owner, voted on by token holders (FOR-only quorum), then resolved by the **permissionless** `ratifyUpgrade()` after the voting deadline. Ratification performs the cut through `DiamondCutFacet` authorized by a transient in-progress flag that only `ratifyUpgrade` sets, so the bootstrap latch does not block governance-approved upgrades.
+
+The bootstrap latch gates **only** `diamondCut`. Owner configuration setters (signing address, storage provider, claim-gas floor) remain callable after finalization.
+
+## Security
+
+- Secrets live only in gitignored `.env*` files; the mainnet key is shell-injected for a single command, never committed.
+- Prospect-creation entrypoints are gated by website-origin signatures with one-time UIDs and deadlines (replay-protected).
+- Reentrancy guards on transfer/reward paths; flash-loan protection on all voting via balance snapshots plus same/adjacent-block activity checks.
+- A system-wide pause can halt inbound-value and governance-takeover paths; withdrawals and refunds remain always-on by design.
+- Sensitive owner configuration changes (oracle feed, signing key, oracle bounds, staleness windows) can be routed through `OpenAdvertsTimelockFacet`.
+- Please report vulnerabilities via the repository's security contact rather than public issues.
+
+## Requirements
+
+- Node.js 18+
+- npm
+
+## Setup
 
 ```console
-git clone <this-repo-url>
+git clone https://github.com/openadverts-io/beopenadverts.git
 cd beopenadverts
-```
-
-2. Install NPM packages:
-
-```console
 npm install
+cp .env.example .env   # optional for local; see comments in the template
 ```
 
-3. (Optional) Create a `.env` file from the template:
+Running the local test suite requires no `.env` setup: on the `hardhat`/`localhost` networks the deploy script uses a dummy signing address and deploys mock USDC and price-feed contracts automatically. A real `.env` is only needed for testnet/mainnet deployment.
+
+## Test
 
 ```console
-cp .env.example .env
+npm test                        # full suite
+npx hardhat test path/to/file.js
+npm run test:gas                # gas benchmark (BusinessCaseV2, POL + USDC payouts)
+npx hardhat size-contracts      # EIP-170 contract-size report
 ```
 
-Running the local test suite requires **no** `.env` setup — on the `hardhat`/`localhost`
-networks the deploy script uses a dummy signing address and deploys mock USDC / price-feed
-contracts automatically. A real `.env` is only needed for testnet/mainnet deployment
-(see `.env.example` for the required variables).
+## Deploy
 
-## Deployment
+Local (in-process Hardhat network):
 
 ```console
-npx hardhat run scripts/deploy.js
+npm run deploy
 ```
 
-### How the scripts/deploy.js script works
-
-1. DiamondCutFacet is deployed.
-1. The diamond is deployed, passing as arguments to the diamond constructor the owner address of the diamond and the DiamondCutFacet address. DiamondCutFacet has the `diamondCut` external function which is used to upgrade the diamond to add more functions.
-1. The `DiamondInit` contract is deployed. This contains an `init` function which is called on the first diamond upgrade to initialize state of some state variables. Information on how the `diamondCut` function works is here: https://eips.ethereum.org/EIPS/eip-2535#diamond-interface
-1. Facets are deployed.
-1. The diamond is upgraded. The `diamondCut` function is used to add functions from facets to the diamond. In addition the `diamondCut` function calls the `init` function from the `DiamondInit` contract using `delegatecall` to initialize state variables.
-
-How a diamond is deployed is not part of the EIP-2535 Diamonds standard. This implementation shows a usable example.
-
-## Run tests:
+Against a standalone node:
 
 ```console
-npx hardhat test
+npx hardhat node                                     # terminal 1
+npx hardhat run scripts/deploy.js --network localhost
 ```
 
-Run only the gas benchmark (BusinessCaseV2, covers both POL and USDC payouts):
+Polygon mainnet (guarded — see `.env.prod.example`). Never store the mainnet key in a file; inject it for the single command:
 
 ```console
-npm run test:gas
+$env:PRIVATEKEYMAINNET = "0x<dedicated mainnet owner EOA key>"
+$env:ENV_FILE = ".env.prod"; $env:I_UNDERSTAND_MAINNET = "1"
+npx hardhat run scripts/deploy.js --network polygon
+Remove-Item Env:PRIVATEKEYMAINNET                    # clear immediately after
 ```
 
-## Upgrade a diamond
+Verify (no owner key required):
 
-Check the `scripts/deploy.js` and or the `test/diamondTest.js` file for examples of upgrades.
-
-Note that upgrade functionality is optional. It is possible to deploy a diamond that can't be upgraded, which is a 'Single Cut Diamond'. It is also possible to deploy an upgradeable diamond and at a later date remove its `diamondCut` function so it can't be upgraded any more.
-
-Note that any number of functions from any number of facets can be added/replaced/removed on a diamond in a single transaction. In addition an initialization function can be executed in the same transaction as an upgrade to initialize any state variables required for an upgrade. This 'everything done in a single transaction' capability ensures a diamond maintains a correct and consistent state during upgrades.
-
-## Facet Information
-
-The `contracts/Diamond.sol` file shows an example of implementing a diamond.
-
-The `contracts/facets/DiamondCutFacet.sol` file shows how to implement the `diamondCut` external function.
-
-The `contracts/facets/DiamondLoupeFacet.sol` file shows how to implement the four standard loupe functions.
-
-The `contracts/libraries/LibDiamond.sol` file shows how to implement Diamond Storage and a `diamondCut` internal function.
-
-The `scripts/deploy.js` file shows how to deploy a diamond.
-
-The `test/diamondTest.js` file gives tests for the `diamondCut` function and the Diamond Loupe functions.
-
-## How to Get Started Making Your Diamond
-
-1. Reading and understand [EIP-2535 Diamonds](https://github.com/ethereum/EIPs/issues/2535). If something is unclear let me know!
-
-2. Use a diamond reference implementation. You are at the right place because this is the README for a diamond reference implementation.
-
-This diamond implementation is boilerplate code that makes a diamond compliant with EIP-2535 Diamonds.
-
-Specifically you can copy and use the [DiamondCutFacet.sol](./contracts/facets/DiamondCutFacet.sol) and [DiamondLoupeFacet.sol](./contracts/facets/DiamondLoupeFacet.sol) contracts. They implement the `diamondCut` function and the loupe functions.
-
-The [Diamond.sol](./contracts/Diamond.sol) contract could be used as is, or it could be used as a starting point and customized. This contract is the diamond. Its deployment creates a diamond. It's address is a stable diamond address that does not change.
-
-The [LibDiamond.sol](./contracts/libraries/LibDiamond.sol) library could be used as is. It shows how to implement Diamond Storage. This contract includes contract ownership which you might want to change if you want to implement DAO-based ownership or other form of contract ownership. Go for it. Diamonds can work with any kind of contract ownership strategy. This library contains an internal function version of `diamondCut` that can be used in the constructor of a diamond or other places.
-
-## Calling Diamond Functions
-
-In order to call a function that exists in a diamond you need to use the ABI information of the facet that has the function.
-
-Here is an example that uses web3.js:
-
-```javascript
-let myUsefulFacet = new web3.eth.Contract(MyUsefulFacet.abi, diamondAddress);
+```console
+$env:ENV_FILE = ".env.prod"; npx hardhat run scripts/verify.js --network polygon
 ```
 
-In the code above we create a contract variable so we can call contract functions with it.
+The deployer receives the full OAD supply at genesis and is the initial Diamond owner. On live networks the deploy finalizes the bootstrap latch, so post-deploy facet upgrades go through governance. The script also initializes the claim-gas floor, the protocol signing address, and (on Polygon) the storage-provider address.
 
-In this example we know we will use a diamond because we pass a diamond's address as the second argument. But we are using an ABI from the MyUsefulFacet facet so we can call functions that are defined in that facet. MyUsefulFacet's functions must have been added to the diamond (using diamondCut) in order for the diamond to use the function information provided by the ABI of course.
+## Repository structure
 
-Similarly you need to use the ABI of a facet in Solidity code in order to call functions from a diamond. Here's an example of Solidity code that calls a function from a diamond:
-
-```solidity
-string result = MyUsefulFacet(address(diamondContract)).getResult()
 ```
-
-## Get Help and Join the Community
-
-If you need help or would like to discuss diamonds then send me a message [on twitter](https://twitter.com/mudgen), or [email me](mailto:nick@perfectabstractions.com). Or join the [EIP-2535 Diamonds Discord server](https://discord.gg/kQewPw2).
-
-## Useful Links
-
-1. [Introduction to the Diamond Standard, EIP-2535 Diamonds](https://eip2535diamonds.substack.com/p/introduction-to-the-diamond-standard)
-1. [EIP-2535 Diamonds](https://github.com/ethereum/EIPs/issues/2535)
-1. [Understanding Diamonds on Ethereum](https://dev.to/mudgen/understanding-diamonds-on-ethereum-1fb)
-1. [Solidity Storage Layout For Proxy Contracts and Diamonds](https://medium.com/1milliondevs/solidity-storage-layout-for-proxy-contracts-and-diamonds-c4f009b6903)
-1. [New Storage Layout For Proxy Contracts and Diamonds](https://medium.com/1milliondevs/new-storage-layout-for-proxy-contracts-and-diamonds-98d01d0eadb)
-1. [Upgradeable smart contracts using the Diamond Standard](https://hiddentao.com/archives/2020/05/28/upgradeable-smart-contracts-using-diamond-standard)
-1. [buidler-deploy supports diamonds](https://github.com/wighawag/buidler-deploy/)
-
-## Author
-
-This example implementation was written by Nick Mudge.
-
-Contact:
-
-- https://twitter.com/mudgen
-- nick@perfectabstractions.com
+contracts/
+  Diamond.sol                  Diamond proxy
+  facets/                      protocol facets (token, advertisers, affiliates, governance, payout, ...)
+  libraries/                   namespaced diamond storage + helpers
+  interfaces/
+  upgradeInitializers/         DiamondInit (one-time upgrade initializer)
+  OpenAdvertsAdvertPOL.sol     per-campaign native-POL contract
+  OpenAdvertsAdvertUSDC.sol    per-campaign USDC contract
+  Mock*.sol / Reentrancy.sol   test-only fixtures
+scripts/
+  deploy.js                    full deployment + initialization
+  verify.js                    standalone block-explorer re-verification
+test/                          Hardhat test suite (Mocha/Chai)
+hardhat.config.cjs
+```
 
 ## License
 
-MIT license. See the license file.
-Anyone can use or modify this software for their purposes.
+MIT. See [LICENSE](./LICENSE). Built on the diamond-3-hardhat reference implementation of EIP-2535 by Nick Mudge.
