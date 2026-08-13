@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenAdverts — Minimum advertBounty Guidance</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0f1117; color:#e2e8f0; padding:28px; line-height:1.5; }
+  h1 { font-size:1.5rem; color:#a78bfa; margin-bottom:6px; }
+  h2 { font-size:1.05rem; color:#7c3aed; margin:30px 0 10px; text-transform:uppercase; letter-spacing:.04em; }
+  h3 { font-size:.9rem; color:#94a3b8; margin:16px 0 6px; }
+  p, li { font-size:.85rem; color:#cbd5e1; max-width:1000px; }
+  .meta { font-size:.78rem; color:#64748b; margin-bottom:18px; }
+  .box { background:#1e2130; border:1px solid #2d3148; border-radius:10px; padding:16px 20px; margin:14px 0; max-width:1000px; }
+  table { border-collapse:collapse; font-size:.8rem; margin:6px 0 4px; }
+  th,td { padding:7px 12px; border:1px solid #2d3148; text-align:right; }
+  th { background:#262940; color:#94a3b8; text-align:center; }
+  td.label { text-align:left; color:#94a3b8; }
+  .sub { font-size:.7rem; color:#64748b; }
+  .tag-green { background:#166534; color:#86efac; padding:2px 8px; border-radius:4px; font-size:.72rem; }
+  .tag-red { background:#7f1d1d; color:#fca5a5; padding:2px 8px; border-radius:4px; font-size:.72rem; }
+  td.pos { color:#86efac; } td.neg { color:#fca5a5; }
+  code { background:#262940; padding:1px 6px; border-radius:4px; color:#a5b4fc; }
+  footer { margin-top:40px; font-size:.72rem; color:#475569; }
+</style></head><body>
+
+<h1>OpenAdverts — Minimum <code>advertBounty</code> Guidance</h1>
+<p class="meta">Generated 2026-08-13T11:06:04.363Z · POL advert · 20-sig batch · viewer 70% · 3-TP unique · gas/sig 90.196 (amortised over 20 sigs)</p>
+
+<div class="box">
+  <strong>Model &amp; scope.</strong>
+  <ul>
+    <li>Both the payout and the gas are in <strong>POL</strong>, so the viewer's gas-breakeven <code>advertBounty</code> is <strong>invariant to the POL/USD price</strong> — price only scales the magnitude. USD price matters <em>only</em> when comparing the advertiser's cost to Google (a USD benchmark).</li>
+    <li>Costs are amortised over a <strong>20-signature batch</strong> (never a single signature). The viewer pays <strong>1.803.920 gas once</strong> for 20 engagements; 90.196 is the per-engagement share.</li>
+    <li>Viewer receives <strong>70%</strong> of the bounty; all third-party addresses unique (worst-case gas path). Gas is split-ratio-invariant (same recipients at 50% or 70%).</li>
+    <li>Google benchmarks are editable constants in the script — currently CPV <code>$0.010000</code>/view, CPC <code>$0.100000</code>/click, CPM <code>$0.000500</code>/impression.</li>
+  </ul>
+</div>
+
+<h2>1 · Absolute minimum <code>advertBounty</code> to cover viewer gas</h2>
+<p>The floor: below this the viewer's 70% share does not even repay the gas they spend to claim. POL column is the real constraint (price-invariant); USD columns are for context.</p>
+<table>
+  <thead><tr><th>gas price</th><th>min advertBounty (POL)</th><th>= USD @ $0.08</th><th>= USD @ $0.25</th></tr></thead>
+  <tbody><tr><td class="label">30 gwei</td><td>0.003866</td><td>$0.000309</td><td>$0.000966</td></tr><tr><td class="label">100 gwei</td><td>0.012885</td><td>$0.001031</td><td>$0.003221</td></tr><tr><td class="label">200 gwei</td><td>0.025770</td><td>$0.002062</td><td>$0.006443</td></tr><tr><td class="label">500 gwei</td><td>0.064426</td><td>$0.005154</td><td>$0.016106</td></tr></tbody>
+</table>
+
+<h2>2 · <code>advertBounty</code> to match Google's cheapest price</h2>
+<p>What the advertiser would pay per engagement to be <em>at parity</em> with Google. Same USD price converts to different POL amounts as POL moves.</p>
+<table>
+  <thead><tr><th>Google format</th><th>price USD</th><th>advertBounty POL @ $0.08</th><th>advertBounty POL @ $0.25</th></tr></thead>
+  <tbody><tr><td class="label">View  (YouTube CPV)</td><td>$0.010000</td><td>0.125000</td><td>0.040000</td></tr><tr><td class="label">Click (Display CPC)</td><td>$0.100000</td><td>1.250000</td><td>0.400000</td></tr><tr><td class="label">Impression (Display CPM)</td><td>$0.000500</td><td>0.006250</td><td>0.002000</td></tr></tbody>
+</table>
+
+<h2>3 · Feasibility — cover viewer gas <em>and</em> stay ≤ Google</h2>
+<p>Feasible when the viewer gas-cover bounty (in USD) is ≤ Google's price. Note a <strong>lower POL price makes this easier</strong> (gas is cheaper in USD), so USD price is <em>not</em> irrelevant for the Google comparison.</p>
+
+      <h3>POL = $0.08</h3>
+      <table>
+        <thead><tr><th>gas price</th><th>viewer gas-cover (USD)</th>
+        <th>View  (YouTube CPV)<br><span class="sub">$0.010000</span></th><th>Click (Display CPC)<br><span class="sub">$0.100000</span></th><th>Impression (Display CPM)<br><span class="sub">$0.000500</span></th></tr></thead>
+        <tbody><tr><td class="label">30 gwei</td><td>$0.000309</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td></tr><tr><td class="label">100 gwei</td><td>$0.001031</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr><tr><td class="label">200 gwei</td><td>$0.002062</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr><tr><td class="label">500 gwei</td><td>$0.005154</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr></tbody>
+      </table>
+      <h3>POL = $0.25</h3>
+      <table>
+        <thead><tr><th>gas price</th><th>viewer gas-cover (USD)</th>
+        <th>View  (YouTube CPV)<br><span class="sub">$0.010000</span></th><th>Click (Display CPC)<br><span class="sub">$0.100000</span></th><th>Impression (Display CPM)<br><span class="sub">$0.000500</span></th></tr></thead>
+        <tbody><tr><td class="label">30 gwei</td><td>$0.000966</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr><tr><td class="label">100 gwei</td><td>$0.003221</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr><tr><td class="label">200 gwei</td><td>$0.006443</td><td><span class="tag-green">feasible</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr><tr><td class="label">500 gwei</td><td>$0.016106</td><td><span class="tag-red">gas &gt; Google</span></td><td><span class="tag-green">feasible</span></td><td><span class="tag-red">gas &gt; Google</span></td></tr></tbody>
+      </table>
+
+<h2>4 · Recommended governance <code>minAdvertBountyInPOLWei</code> bandwidth</h2>
+<p>Set the floor by the gas price you want viewers to stay whole at. Positioning is vs Google at $0.25/POL.</p>
+<table>
+  <thead><tr><th>resilience target</th><th>min bounty (POL)</th><th>= USD @ $0.08</th><th>= USD @ $0.25</th><th>vs Google</th></tr></thead>
+  <tbody><tr><td class="label">resilient to 100 gwei</td><td>0.012885</td><td>$0.001031</td><td>$0.003221</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 200 gwei</td><td>0.025770</td><td>$0.002062</td><td>$0.006443</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 500 gwei</td><td>0.064426</td><td>$0.005154</td><td>$0.016106</td><td>above CPV, below CPC</td></tr></tbody>
+</table>
+
+<h2>5 · Cheaper than Google even if the viewer runs a loss</h2>
+<p>If you set <code>advertBounty = Google's price</code> (so the advertiser is at parity or below), this is the viewer's net per engagement. Red = the viewer loses money claiming and would need a sponsor/relayer to pay gas.</p>
+
+      <h3>POL = $0.08 — viewer net/sig if advertBounty = Google price</h3>
+      <table>
+        <thead><tr><th>Google format (= advertBounty)</th><th>30 gwei</th><th>100 gwei</th><th>200 gwei</th><th>500 gwei</th></tr></thead>
+        <tbody><tr><td class="label">View  (YouTube CPV) ($0.010000)</td><td class="pos">$0.006784</td><td class="pos">$0.006278</td><td class="pos">$0.005557</td><td class="pos">$0.003392</td></tr><tr><td class="label">Click (Display CPC) ($0.100000)</td><td class="pos">$0.069784</td><td class="pos">$0.069278</td><td class="pos">$0.068557</td><td class="pos">$0.066392</td></tr><tr><td class="label">Impression (Display CPM) ($0.000500)</td><td class="pos">$0.000134</td><td class="neg">$-0.000372</td><td class="neg">$-0.001093</td><td class="neg">$-0.003258</td></tr></tbody>
+      </table>
+      <h3>POL = $0.25 — viewer net/sig if advertBounty = Google price</h3>
+      <table>
+        <thead><tr><th>Google format (= advertBounty)</th><th>30 gwei</th><th>100 gwei</th><th>200 gwei</th><th>500 gwei</th></tr></thead>
+        <tbody><tr><td class="label">View  (YouTube CPV) ($0.010000)</td><td class="pos">$0.006324</td><td class="pos">$0.004745</td><td class="pos">$0.002490</td><td class="neg">$-0.004275</td></tr><tr><td class="label">Click (Display CPC) ($0.100000)</td><td class="pos">$0.069324</td><td class="pos">$0.067745</td><td class="pos">$0.065490</td><td class="pos">$0.058725</td></tr><tr><td class="label">Impression (Display CPM) ($0.000500)</td><td class="neg">$-0.000326</td><td class="neg">$-0.001905</td><td class="neg">$-0.004160</td><td class="neg">$-0.010925</td></tr></tbody>
+      </table>
+
+<footer>Editable inputs live in test/GasBenchmark/minAdvertBountyAnalysis.js (gas read from bcv2Baseline.json · Google benchmarks in CONFIG.google).</footer>
+</body></html>

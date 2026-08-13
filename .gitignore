@@ -1,0 +1,20 @@
+node_modules
+
+#Hardhat files
+cache
+artifacts
+.env
+.env.prod
+.env.*.local
+
+# Generated artifacts that self-regenerate on test/deploy runs (avoid dirty-tree churn).
+# NOTE: the last committed snapshot stays in git history; the *.js sources here remain tracked.
+deployed-addresses.json
+test/GasBenchmark/gasBaseline.json
+test/GasBenchmark/bcv2Baseline.json
+test/GasBenchmark/bcv2Report.html
+test/GasBenchmark/eventGasCost.json
+
+# Internal-only docs (agent briefs, FE/backend integration notes, full project docs).
+# Kept locally, never published to the public repo.
+internal/

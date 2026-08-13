@@ -1,0 +1,53 @@
+{
+  "name": "beopenadverts",
+  "version": "1.0.0",
+  "description": "OpenAdverts EIP-2535 Diamond protocol (smart contracts).",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "npx hardhat test",
+    "compile": "npx hardhat compile",
+    "node": "npx hardhat node",
+    "deploy": "npx hardhat run scripts/deploy.js",
+    "test:gas": "npx hardhat test test/PreLaunchTesting/BusinessCaseV2.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openadverts-io/beopenadverts.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/openadverts-io/beopenadverts/issues"
+  },
+  "homepage": "https://github.com/openadverts-io/beopenadverts#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "@types/node": "^18.0.0",
+    "chai": "^4.2.0",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.19.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^3.0.0",
+    "prettier-plugin-solidity": "^1.2.0",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": ">=8.0.0",
+    "typechain": "^8.3.0",
+    "typescript": ">=4.5.0"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^1.5.0",
+    "@chainlink/local": "^0.2.3",
+    "@openzeppelin/contracts": "^5.1.0",
+    "viem": "^1.21.4"
+  }
+}
