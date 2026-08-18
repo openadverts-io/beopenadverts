@@ -113,6 +113,7 @@ async function buildScenario(mockFqName, tpPerSig) {
   const signatures = []
   const blockNumbers = []
   const baseBlock = await ethers.provider.getBlockNumber()
+  const chainId = (await ethers.provider.getNetwork()).chainId
   const wallet = new ethers.Wallet(signingAddress.privateKey)
   for (let i = 0; i < 20; i++) {
     const blockNumber = baseBlock + i * 2
@@ -120,8 +121,8 @@ async function buildScenario(mockFqName, tpPerSig) {
     const tpAddrs = thirdPartySets[i].thirdPartyAddresses
     const tpHash = ethers.keccak256(ethers.solidityPacked(['address[]'], [tpAddrs]))
     const msgHash = ethers.solidityPackedKeccak256(
-      ['address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
-      [user.address, BigInt(blockNumber), BigInt(verificationData.nonce),
+      ['uint256', 'address', 'address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
+      [chainId, diamondAddress, user.address, BigInt(blockNumber), BigInt(verificationData.nonce),
         verificationData.affiliateReceivingAddress, polAdvertAddress, BigInt(tpAddrs.length), tpHash, advertBounty])
     signatures.push(await wallet.signMessage(ethers.getBytes(msgHash)))
   }

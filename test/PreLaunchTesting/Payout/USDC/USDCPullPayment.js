@@ -117,6 +117,7 @@ describe("Phase 1B — USDC pull-payment pattern", function () {
         const signatures = [];
         const blockNumbers = [];
         const baseBlock = await ethers.provider.getBlockNumber();
+        const chainId = (await ethers.provider.getNetwork()).chainId;
         const wallet = new ethers.Wallet(signingAddress.privateKey);
 
         for (let i = 0; i < 2; i++) {
@@ -125,8 +126,10 @@ describe("Phase 1B — USDC pull-payment pattern", function () {
             const tpAddrs = thirdPartySets[i].thirdPartyAddresses;
             const tpHash = ethers.keccak256(ethers.solidityPacked(["address[]"], [tpAddrs]));
             const msgHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
                 [
+                    chainId,
+                    diamondAddress,
                     user.address,
                     BigInt(blockNumber),
                     BigInt(verificationData.nonce),

@@ -85,7 +85,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
       
       // Cooldown Parameters
       proposedAdvertPauseCooldownBlocks: 302400,
-      proposedMaxSignaturesPerBatch: 200,
+      proposedMaxSignaturesPerBatch: 50,
       proposedMinViewerClaimPct: 70
     }
   }
@@ -278,7 +278,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         expect(gasPriceWei).to.equal(500n * (10n ** 9n))
       })
 
-      it('should reject non-owner and zero claim-gas assumption updates', async function () {
+      it('should reject non-owner, zero, and out-of-range claim-gas assumption updates', async function () {
         const { claimGasFloorFacet, addr1 } = await loadFixture(deployGovernanceFixture)
 
         await expect(
@@ -287,7 +287,17 @@ describe('OpenAdvertsGovernanceFacet', function () {
 
         await expect(
           claimGasFloorFacet.setClaimGasFloorAssumptions(0n, 500n * (10n ** 9n))
-        ).to.be.revertedWith('Assumptions must be positive')
+        ).to.be.revertedWith('gasPerSig out of range')
+
+        // Above the 1,000,000 gasPerSig ceiling.
+        await expect(
+          claimGasFloorFacet.setClaimGasFloorAssumptions(1_000_001n, 500n * (10n ** 9n))
+        ).to.be.revertedWith('gasPerSig out of range')
+
+        // Above the 100,000 gwei gasPriceWei ceiling (prevents the unsatisfiable-floor DoS).
+        await expect(
+          claimGasFloorFacet.setClaimGasFloorAssumptions(90000n, 100_001n * (10n ** 9n))
+        ).to.be.revertedWith('gasPriceWei out of range')
       })
 
       it('should raise the enforced floor when the owner raises the assumptions', async function () {
@@ -644,6 +654,34 @@ describe('OpenAdvertsGovernanceFacet', function () {
 
         // The selector now resolves to the freshly deployed facet — proof the cut executed.
         expect(await loupe.facetAddress(ownerSelector)).to.equal(newAddr)
+      })
+
+      it('rejects a passed facet proposal that removes a protected selector (no brick, proposal cleared)', async function () {
+        const { governanceFacet, queryV2Facet, tokenFacet, diamondAddress, owner, addr1, addr2 } = await loadFixture(deployGovernanceFixture)
+        const loupe = await ethers.getContractAt('DiamondLoupeFacet', diamondAddress)
+
+        // Attempt to Remove a core governance selector.
+        const voteSelector = governanceFacet.interface.getFunction('voteOnProposal').selector
+        const before = await loupe.facetAddress(voteSelector)
+        expect(before).to.not.equal(ethers.ZeroAddress)
+        const cut = [{ facetAddress: ethers.ZeroAddress, action: 2, functionSelectors: [voteSelector] }] // 2 = Remove
+
+        const totalSupply = await tokenFacet.totalSupply()
+        const voteAmount = totalSupply / 3n
+        await tokenFacet.connect(owner).transfer(addr1.address, voteAmount)
+        await tokenFacet.connect(owner).transfer(addr2.address, voteAmount)
+        await advanceBlocksForVoting(15)
+
+        await governanceFacet.connect(owner).createProposal(1, createSampleQuotaProposal(), 605000, cut)
+        await governanceFacet.connect(addr1).voteOnProposal(true)
+        await governanceFacet.connect(addr2).voteOnProposal(true)
+        await advanceBlocksForVoting(605000 + 1)
+
+        // Ratify does not revert (the blocked cut is caught); the selector survives and the queue clears.
+        await expect(governanceFacet.connect(owner).ratifyUpgrade()).to.not.be.reverted
+        expect(await loupe.facetAddress(voteSelector)).to.equal(before)
+        const snap = await queryV2Facet.getGovernanceSnapshot()
+        expect(snap.isProposalActive).to.equal(false)
       })
 
       it('does not execute the cut when a facet proposal is voted down', async function () {

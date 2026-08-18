@@ -197,6 +197,8 @@ function deterministicAddr(seed) {
 /**
  * Create a full batch of processReward signatures.
  *
+ * @param {bigint}        chainId         Active chain id (binds signature to chain)
+ * @param {string}        diamondAddress  Diamond address (delegatecall context in the on-chain hash)
  * @param {ethers.Wallet} wallet          Signing wallet
  * @param {object}        verificationData  VerificationDataStruct fields
  * @param {Array}         tpMatrix        Output of buildTPMatrix
@@ -204,7 +206,7 @@ function deterministicAddr(seed) {
  * @param {BigInt}        bountyWei       Bounty stored in the advert contract
  * @returns {{ signatures: string[], blockNumbers: number[] }}
  */
-async function createSignaturesBatch(wallet, verificationData, tpMatrix, startBlock, bountyWei) {
+async function createSignaturesBatch(chainId, diamondAddress, wallet, verificationData, tpMatrix, startBlock, bountyWei) {
   const signatures   = []
   const blockNumbers = []
 
@@ -224,8 +226,10 @@ async function createSignaturesBatch(wallet, verificationData, tpMatrix, startBl
     }
 
     const msgHash = ethers.solidityPackedKeccak256(
-      ['address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
+      ['uint256', 'address', 'address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
       [
+        chainId,
+        diamondAddress,
         verificationData.viewerAddress,
         BigInt(blockNumber),
         BigInt(verificationData.nonce),
@@ -355,7 +359,7 @@ async function initializeGovernanceQuotas(governanceFacet, owner) {
     proposedAdminApplicantFeeInPolWei:         ethers.parseEther('1.0'),
     proposedAdminVoteDeadlineInBlocks:         7200,
     proposedAdvertPauseCooldownBlocks:         7200,
-    proposedMaxSignaturesPerBatch:             200,
+    proposedMaxSignaturesPerBatch:             50,
     proposedMinViewerClaimPct:                 70,
   }, 300, [])
   await mine(301)
@@ -554,8 +558,9 @@ async function runPOLScenario({
     viewerAddress:                viewer.address,
   }
 
+  const chainId = (await ethers.provider.getNetwork()).chainId
   const { signatures, blockNumbers } = await createSignaturesBatch(
-    signingWallet, verificationData, tpMatrix, curBlock, bountyPOLWei
+    chainId, _gateDiamond, signingWallet, verificationData, tpMatrix, curBlock, bountyPOLWei
   )
 
   // ── 4. Execute processReward ─────────────────────────────────────────────
@@ -1098,8 +1103,9 @@ describe('Business Case V2 — Gas Costs, Profitability & Lifecycle Accounting',
         viewerAddress:                viewer.address,
       }
 
+      const chainId = (await ethers.provider.getNetwork()).chainId
       const { signatures, blockNumbers } = await createSignaturesBatch(
-        signingWallet, verificationData, tpMatrix, curBlock, bountyMicro
+        chainId, _gateDiamond, signingWallet, verificationData, tpMatrix, curBlock, bountyMicro
       )
 
       // ── 4. Execute processReward ────────────────────────────────────────
@@ -1226,8 +1232,9 @@ describe('Business Case V2 — Gas Costs, Profitability & Lifecycle Accounting',
         viewerAddress:                viewer.address,
       }
 
+      const chainId = (await ethers.provider.getNetwork()).chainId
       const { signatures, blockNumbers } = await createSignaturesBatch(
-        signingWallet, verificationData, tpMatrix, curBlock, minBountyUSDC
+        chainId, _gateDiamond, signingWallet, verificationData, tpMatrix, curBlock, minBountyUSDC
       )
 
       const tx      = await usdcContract.connect(viewer).processReward(signatures, blockNumbers, verificationData, tpMatrix)
@@ -1362,8 +1369,9 @@ describe('Business Case V2 — Gas Costs, Profitability & Lifecycle Accounting',
           viewerAddress:                viewer.address,
         }
 
+        const chainId = (await ethers.provider.getNetwork()).chainId
         const { signatures, blockNumbers } = await createSignaturesBatch(
-          signingWallet, verificationData, tpMatrix, curBlock, bountyMicro
+          chainId, _gateDiamond, signingWallet, verificationData, tpMatrix, curBlock, bountyMicro
         )
 
         const tx      = await usdcContract.connect(viewer).processReward(signatures, blockNumbers, verificationData, tpMatrix)

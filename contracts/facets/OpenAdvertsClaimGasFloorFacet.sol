@@ -26,12 +26,16 @@ contract OpenAdvertsClaimGasFloorFacet {
      * @notice Owner-only: set the claim-gas floor assumptions (no tokenholder vote).
      * @dev Called once by the deploy script to initialise, and thereafter by the owner to retune.
      *      Owner already gates governance proposal creation, so owner-direct control adds no trust.
-     * @param gasPerSig Assumed gas consumed per signature at claim time (must be > 0).
-     * @param gasPriceWei Assumed worst-case Polygon gas price in wei (must be > 0).
+     * @param gasPerSig Assumed gas consumed per signature at claim time (1..1,000,000).
+     * @param gasPriceWei Assumed worst-case Polygon gas price in wei (1 wei .. 100,000 gwei).
      */
     function setClaimGasFloorAssumptions(uint256 gasPerSig, uint256 gasPriceWei) external {
         LibDiamond.enforceIsContractOwner();
-        require(gasPerSig > 0 && gasPriceWei > 0, "Assumptions must be positive");
+        // Upper bounds prevent an owner misconfiguration (e.g. huge values) from making the governance
+        // claim-gas floor check unsatisfiable and thereby DoS-ing all quota proposals. The ceilings are
+        // far above any realistic Polygon value (deploy uses 90,000 gas @ 300 gwei).
+        require(gasPerSig > 0 && gasPerSig <= 1_000_000, "gasPerSig out of range");
+        require(gasPriceWei > 0 && gasPriceWei <= 100_000 gwei, "gasPriceWei out of range");
         LibOpenAdvertsGovernanceStorage.GovernanceStorage storage gs = LibOpenAdvertsGovernanceStorage.governanceStorage();
         gs.assumedGasPerSig = gasPerSig;
         gs.assumedClaimGasPriceWei = gasPriceWei;

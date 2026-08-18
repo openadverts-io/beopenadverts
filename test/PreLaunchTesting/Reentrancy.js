@@ -331,9 +331,12 @@ describe('ReentrancyPOLContract: processReward Attack Tests', function () {
       const paddedHex = tpAddrs.map(a => ethers.zeroPadValue(a, 32)).join('').replace(/0x/g, '');
       const tpHash = ethers.keccak256('0x' + paddedHex);
 
+      const chainId = (await ethers.provider.getNetwork()).chainId;
       const messageHash = ethers.solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+        ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
         [
+          chainId,
+          _gateDiamond,
           attacker.address,
           BigInt(blockNumber),
           BigInt(verificationData.nonce),
@@ -574,9 +577,12 @@ describe('ReentrancyPOLContract: processReward Attack Tests', function () {
       const paddedHex = tpAddrs.map(a => ethers.zeroPadValue(a, 32)).join('').replace(/0x/g, '');
       const tpHash = ethers.keccak256('0x' + paddedHex);
 
+      const chainId = (await ethers.provider.getNetwork()).chainId;
       const messageHash = ethers.solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+        ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
         [
+          chainId,
+          _gateDiamond,
           attacker.address,
           BigInt(blockNumber),
           BigInt(verificationData2.nonce),

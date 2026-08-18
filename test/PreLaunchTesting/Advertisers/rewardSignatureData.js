@@ -201,7 +201,7 @@ describe("getRewardSignatureData — Consolidated RPC", function () {
                 proposedAdminVoteDeadlineInBlocks: 7200,
                 proposedAdvertPauseCooldownBlocks: 7200,
                 proposedUSDCCurrencyPremiumInPCT: 10,
-                proposedMaxSignaturesPerBatch: 200,
+                proposedMaxSignaturesPerBatch: 50,
                 proposedMinViewerClaimPct: 70
             };
             await governanceFacet.connect(owner).createProposal(0, quotas, 300, []);

@@ -137,7 +137,7 @@ describe("OpenAdvertsAdvertUSDCFactoryFacet - createNewProspectUSDCAdvertContrac
                     proposedAdminVoteDeadlineInBlocks: 7200,
                     proposedAdvertPauseCooldownBlocks: 7200,
                     proposedUSDCCurrencyPremiumInPCT: 10, // ✅ ADD: 10% USDC premium
-                    proposedMaxSignaturesPerBatch: 200,
+                    proposedMaxSignaturesPerBatch: 50,
                     proposedMinViewerClaimPct: 70
                 };
                 

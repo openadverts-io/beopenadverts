@@ -103,7 +103,10 @@ contract OpenAdvertsTokenFacet is ReentrancyGuard {
             govStorage.currentQuotas.affiliateDenialThreshold = 60; // 60%
 
             // PAYOUT PARAMETERS
-            govStorage.currentQuotas.maxSignaturesPerBatch = 200; // Maximum signatures per claimReward call
+            // processReward gas is quadratic in batch size (in-memory dedup scans, ~thirdPartyCount^2);
+            // 50 keeps the worst legal path (6 unique third parties/sig on the uncapped POL contract,
+            // ~9M gas) well within Polygon's 30M block limit. See OpenAdvertsGovernanceFacet 1-75 bound.
+            govStorage.currentQuotas.maxSignaturesPerBatch = 50; // Maximum signatures per claimReward call
             govStorage.currentQuotas.minViewerClaimPct = 70; // Minimum viewer share per bounty
 
             // TOKEN DISTRIBUTION

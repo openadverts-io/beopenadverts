@@ -487,14 +487,16 @@ describe('Business Case Analysis: Gas Costs & Profitability', function () {
       })
     }).timeout(300000)
 
-    it('BC10: Should test 60 signatures with 50% viewer claim @ $0.0025 bounty', async function () {
-      await testProcessRewardScenario({
-        signatureCount: 60,
+    it('BC10: Should reject a batch above maxSignaturesPerBatch (51 > 50 cap)', async function () {
+      // Regression guard for the gas-safety cap: processReward gas is quadratic in batch size,
+      // so the advert contract rejects any batch larger than the governance maxSignaturesPerBatch.
+      await expect(testProcessRewardScenario({
+        signatureCount: 51,
         viewerClaimPct: '50',
         bountyUSD: 0.015,
         bountyPOL: ethers.parseEther("0.06"),
         testLabel: 'BC10'
-      })
+      })).to.be.revertedWith('Exceeds max signatures per batch')
     }).timeout(300000)
   })
 
@@ -605,6 +607,7 @@ describe('Business Case Analysis: Gas Costs & Profitability', function () {
 
     const currentNonce = await polContract.getUserNonceOfAffiliate(designatedAffiliateAddress)
     const currentBlock = await ethers.provider.getBlockNumber()
+    const chainId = (await ethers.provider.getNetwork()).chainId
     
     const verificationData = {
       affiliateReceivingAddress: designatedAffiliateAddress,
@@ -637,8 +640,10 @@ describe('Business Case Analysis: Gas Costs & Profitability', function () {
       const tpHash = ethers.keccak256('0x' + paddedHex)
 
       const messageHash = ethers.solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+        ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
         [
+          chainId,
+          diamondAddress,
           viewer.address,
           BigInt(blockNumber),
           BigInt(verificationData.nonce),

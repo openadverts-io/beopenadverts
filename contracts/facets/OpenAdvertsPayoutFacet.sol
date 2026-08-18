@@ -355,6 +355,11 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
         // ADD: Verify msg.sender matches advertContractAddress
         require(msg.sender == advertContractAddress, "Caller must be the advertisement contract");
 
+        // Bind the signed advert address to the actual claiming contract so a signature issued for one
+        // advert cannot be redeemed at another (defense-in-depth alongside the designated-affiliate and
+        // on-chain claim-provider checks).
+        require(verifyData.advertismentContractAddress == advertContractAddress, "Advertisement contract mismatch");
+
         // ADD: Verify advertisement is in Approved status
         require(
             advStore.advertisementStatus[msg.sender] == LibOpenAdvertsAdvertisersStorage.AdvertisementType.Approved ||
@@ -675,6 +680,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
 
             bytes32 messageHash = keccak256(
                 abi.encodePacked(
+                    block.chainid,
+                    address(this),
                     verifyData.viewerAddress,
                     blockNumbers[i],
                     verifyData.nonce,

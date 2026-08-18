@@ -42,7 +42,7 @@ function sampleQuotaProposal() {
         proposedAdminApplicantFeeInPolWei: ethers.parseEther("500"),
         proposedAdminVoteDeadlineInBlocks: 1296000,
         proposedAdvertPauseCooldownBlocks: 302400,
-        proposedMaxSignaturesPerBatch: 200,
+        proposedMaxSignaturesPerBatch: 50,
         proposedMinViewerClaimPct: 70,
     };
 }

@@ -10,25 +10,25 @@ OpenAdverts (OAD) is an on-chain advertising-rewards protocol built on the [EIP-
 
 ## Architecture at a glance
 
-| Component | Role |
-| --- | --- |
-| `Diamond` | Proxy: `fallback` delegatecalls facets; constructor registers `diamondCut` |
-| `DiamondCutFacet` | Add/replace/remove selectors (owner, bootstrap-gated) |
-| `DiamondLoupeFacet` | EIP-2535 introspection |
-| `OwnershipFacet` | ERC-173 ownership |
-| `OpenAdvertsTokenFacet` | OAD token, POL/USDC dividend accrual, `finalizeBootstrap` |
-| `OpenAdvertsAdvertisersFacet` / `OpenAdvertsAdvertisersVotingFacet` | Advertiser & campaign registry; community approval/denial voting |
-| `OpenAdvertsAffiliatesFacet` / `OpenAdvertsAffiliatesVotingFacet` | Affiliate (publisher) registry; approval/denial voting |
-| `OpenAdvertsGovernanceFacet` | Quota & facet proposals, voting, admin elections |
-| `OpenAdvertsPayoutFacet` | Signature verification and reward distribution/claim |
-| `OpenAdvertsClaimGasFloorFacet` | Owner-set claim-gas floor assumptions (bounty profitability guard) |
-| `OpenAdvertsAdvertPOLFactoryFacet` / `OpenAdvertsAdvertUSDCFactoryFacet` / `OpenAdvertsAdvertUSDCHelperFacet` | Deploy per-campaign advert contracts |
-| `OpenAdvertsAdvertUSDCPriceFacet` | Chainlink POL/USD conversion and USDC minimum calculations |
-| `OpenAdvertsQueryFacet` / `OpenAdvertsQueryV2Facet` | Batched read aggregators for frontends |
-| `OpenAdvertsSignatureGateFacet` | Website-origin signature gate on prospect creation |
-| `OpenAdvertsTimelockFacet` | Owner-config timelock (queue → wait → execute) |
-| `OpenAdvertsPauseFacet` | System-wide emergency pause |
-| `OpenAdvertsAdvertPOL` / `OpenAdvertsAdvertUSDC` | Standalone per-campaign contracts deployed by the factory facets |
+| Component                                                                                                     | Role                                                                       |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `Diamond`                                                                                                     | Proxy: `fallback` delegatecalls facets; constructor registers `diamondCut` |
+| `DiamondCutFacet`                                                                                             | Add/replace/remove selectors (owner, bootstrap-gated)                      |
+| `DiamondLoupeFacet`                                                                                           | EIP-2535 introspection                                                     |
+| `OwnershipFacet`                                                                                              | ERC-173 ownership                                                          |
+| `OpenAdvertsTokenFacet`                                                                                       | OAD token, POL/USDC dividend accrual, `finalizeBootstrap`                  |
+| `OpenAdvertsAdvertisersFacet` / `OpenAdvertsAdvertisersVotingFacet`                                           | Advertiser & campaign registry; community approval/denial voting           |
+| `OpenAdvertsAffiliatesFacet` / `OpenAdvertsAffiliatesVotingFacet`                                             | Affiliate (publisher) registry; approval/denial voting                     |
+| `OpenAdvertsGovernanceFacet`                                                                                  | Quota & facet proposals, voting, admin elections                           |
+| `OpenAdvertsPayoutFacet`                                                                                      | Signature verification and reward distribution/claim                       |
+| `OpenAdvertsClaimGasFloorFacet`                                                                               | Owner-set claim-gas floor assumptions (bounty profitability guard)         |
+| `OpenAdvertsAdvertPOLFactoryFacet` / `OpenAdvertsAdvertUSDCFactoryFacet` / `OpenAdvertsAdvertUSDCHelperFacet` | Deploy per-campaign advert contracts                                       |
+| `OpenAdvertsAdvertUSDCPriceFacet`                                                                             | Chainlink POL/USD conversion and USDC minimum calculations                 |
+| `OpenAdvertsQueryFacet` / `OpenAdvertsQueryV2Facet`                                                           | Batched read aggregators for frontends                                     |
+| `OpenAdvertsSignatureGateFacet`                                                                               | Website-origin signature gate on prospect creation                         |
+| `OpenAdvertsTimelockFacet`                                                                                    | Owner-config timelock (queue → wait → execute)                             |
+| `OpenAdvertsPauseFacet`                                                                                       | System-wide emergency pause                                                |
+| `OpenAdvertsAdvertPOL` / `OpenAdvertsAdvertUSDC`                                                              | Standalone per-campaign contracts deployed by the factory facets           |
 
 ## Campaign lifecycle & rewards
 
@@ -41,9 +41,9 @@ USDC campaign minimums are computed as the POL-equivalent (via the Chainlink fee
 
 ## Governance
 
-- **Proposal types.** *Quota proposals* adjust economic and timing parameters; *facet proposals* add, replace, or remove diamond functions.
+- **Proposal types.** _Quota proposals_ adjust economic and timing parameters; _facet proposals_ add, replace, or remove diamond functions.
 - **Voting weight** is each holder's token balance snapshotted at proposal creation, which neutralizes flash-loan and borrow-to-vote attacks.
-- **Quorum is measured on SUPPORT (FOR) votes only.** A proposal passes when support exceeds the quorum threshold *and* outnumbers the deny votes, so a deny vote can never push a proposal over quorum.
+- **Quorum is measured on SUPPORT (FOR) votes only.** A proposal passes when support exceeds the quorum threshold _and_ outnumbers the deny votes, so a deny vote can never push a proposal over quorum.
 - **`ratifyUpgrade()` is permissionless** after the voting deadline and never reverts on quorum/support: it applies a passed proposal or clears a failed one, so the single-proposal queue can never brick.
 - **`revokeProposal()`** is owner-only and restricted to the voting window; once voting ends, the outcome belongs to the token holders.
 - **Admin election.** `applyAsNewAdmin` → token-holder vote → `ratifyNewAdmin`, with a permissionless `clearFailedElection` when no candidate meets quorum, so ownership transfer cannot get stuck.
@@ -52,7 +52,7 @@ USDC campaign minimums are computed as the POL-equivalent (via the Chainlink fee
 
 Two upgrade paths exist:
 
-1. **Owner-direct `diamondCut`** — available only during the *bootstrap window*. A one-way latch (`OpenAdvertsTokenFacet.finalizeBootstrap()`) permanently closes it; `scripts/deploy.js` calls this at the end of a live-network deploy. After finalization, the owner path of `DiamondCutFacet.diamondCut` reverts.
+1. **Owner-direct `diamondCut`** — available only during the _bootstrap window_. A one-way latch (`OpenAdvertsTokenFacet.finalizeBootstrap()`) permanently closes it; `scripts/deploy.js` calls this at the end of a live-network deploy. After finalization, the owner path of `DiamondCutFacet.diamondCut` reverts.
 2. **Governance `FacetProposal`** — created by the owner, voted on by token holders (FOR-only quorum), then resolved by the **permissionless** `ratifyUpgrade()` after the voting deadline. Ratification performs the cut through `DiamondCutFacet` authorized by a transient in-progress flag that only `ratifyUpgrade` sets, so the bootstrap latch does not block governance-approved upgrades.
 
 The bootstrap latch gates **only** `diamondCut`. Owner configuration setters (signing address, storage provider, claim-gas floor) remain callable after finalization.

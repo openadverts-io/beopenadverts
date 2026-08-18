@@ -12,7 +12,10 @@ async function advanceBlocksForVoting(blocks = 15) {
 }
 
 describe('POLContract: processReward Functionality Tests', function () {
-  
+
+  // Captured once during fixture deploy; reused by the createSignature closure.
+  let _diamondAddr
+
   async function deployTestFixture() {
     const allSigners = await ethers.getSigners();
     const [owner, advertiser, advertiser2, affiliate, affiliate2, user, attacker, voter1, voter2, voter3] = allSigners;
@@ -30,6 +33,7 @@ describe('POLContract: processReward Functionality Tests', function () {
     // Deploy the Diamond with all facets
     const deployedAddresses = await deployDiamond()
     const diamondAddress = deployedAddresses.diamond
+    _diamondAddr = diamondAddress
     
     // Get contract interfaces
     const governanceFacet = await ethers.getContractAt('OpenAdvertsGovernanceFacet', diamondAddress)
@@ -217,9 +221,10 @@ describe('POLContract: processReward Functionality Tests', function () {
     const tpHash = ethers.keccak256('0x' + paddedHex);
 
     // keccak256(abi.encodePacked(...)) â€” outer hash matching Solidity _verifySignatures
+    const chainId = (await ethers.provider.getNetwork()).chainId;
     const messageHash = ethers.solidityPackedKeccak256(
-      ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
-      [userAddress, BigInt(blockNumber), BigInt(verificationData.nonce),
+      ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+      [chainId, _diamondAddr, userAddress, BigInt(blockNumber), BigInt(verificationData.nonce),
        verificationData.affiliateReceivingAddress, polAdvertAddress,
        tpCount, tpHash, amount]
     );

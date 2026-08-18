@@ -74,6 +74,7 @@ async function exportGasAnalysis() {
         const blockNumbers = [];
         const thirdPartyStructs = generateUniqueThirdPartyStructs(count);
         const currentBlock = await ethers.provider.getBlockNumber();
+        const chainId = (await ethers.provider.getNetwork()).chainId;
 
         for (let i = 0; i < count; i++) {
             const blockNumber = currentBlock + i * 150;
@@ -85,8 +86,10 @@ async function exportGasAnalysis() {
             const tpHash = ethers.keccak256('0x' + paddedHex);
 
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
                 [
+                    chainId,
+                    diamondAddress,
                     viewer.address,
                     blockNumber,
                     nonce,

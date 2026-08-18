@@ -482,9 +482,10 @@ describe('USDC Advertisement Payout Tests', function () {
             const tpAddrs = [tp1, tp2, tp3];
             const paddedHex = tpAddrs.map(a => ethers.zeroPadValue(a, 32)).join('').replace(/0x/g, '');
             const tpHash = ethers.keccak256('0x' + paddedHex);
+            const chainId = (await ethers.provider.getNetwork()).chainId;
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
-                [viewer.address, BigInt(blockNumber), BigInt(verificationData.nonce), affiliateContractAddress, usdcAdvertAddress, 3n, tpHash, minBountyUSDC]
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                [chainId, _gateDiamond, viewer.address, BigInt(blockNumber), BigInt(verificationData.nonce), affiliateContractAddress, usdcAdvertAddress, 3n, tpHash, minBountyUSDC]
             );
             const wallet = new ethers.Wallet(signingAddress.privateKey);
             const signature = await wallet.signMessage(ethers.getBytes(messageHash));
@@ -709,6 +710,7 @@ describe('USDC Advertisement Payout Tests', function () {
 
         // Use 2-block spacing so every signature satisfies minBlockNRSeparation=1
         // (condition: lastProcessed + minSep < blockNumber, so gap must be >= 2).
+        const chainId = (await ethers.provider.getNetwork()).chainId;
         for (let i = 0; i < signatureCount; i++) {
             const blockNumber = currentBlock - (signatureCount - i) * 2;
             blockNumbers.push(blockNumber);
@@ -720,8 +722,10 @@ describe('USDC Advertisement Payout Tests', function () {
             const tpHash = ethers.keccak256('0x' + paddedHex);
 
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
                 [
+                    chainId,
+                    _gateDiamond,
                     viewer.address,
                     BigInt(blockNumber),
                     BigInt(verificationData.nonce),
@@ -1006,6 +1010,7 @@ describe('USDC Advertisement Payout Tests', function () {
             currentBlock = await ethers.provider.getBlockNumber();
         }
         
+        const chainId = (await ethers.provider.getNetwork()).chainId;
         for (let i = 0; i < signaturesToAttempt; i++) {
             const blockNumber = currentBlock - i - 1;
             blockNumbers.push(blockNumber);
@@ -1018,8 +1023,10 @@ describe('USDC Advertisement Payout Tests', function () {
             const tpHash = ethers.keccak256('0x' + paddedHex);
 
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
                 [
+                    chainId,
+                    _gateDiamond,
                     viewer.address,
                     BigInt(blockNumber),
                     BigInt(Number(currentNonce)),
@@ -1097,8 +1104,10 @@ describe('USDC Advertisement Payout Tests', function () {
             const newTpHash = ethers.keccak256('0x' + newPaddedHex);
 
             const newMessageHash = ethers.solidityPackedKeccak256(
-                ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
                 [
+                    chainId,
+                    _gateDiamond,
                     viewer.address,
                     BigInt(newBlock - 1),
                     BigInt(Number(newNonce)),

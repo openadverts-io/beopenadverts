@@ -302,8 +302,8 @@ describe('USDC Payment Distribution: 20 Signatures with Unique Third Parties', f
     const signatures = []
     const blockNumbers = []
     const currentBlock = await ethers.provider.getBlockNumber()
-
-    console.log(`ðŸ” Creating 20 signatures...`)
+    const chainId = (await ethers.provider.getNetwork()).chainId
+    console.log(`🔐 Creating 20 signatures...`)
 
     for (let i = 0; i < 20; i++) {
       const blockNumber = currentBlock + (i * 2) // Ensure block separation
@@ -314,8 +314,10 @@ describe('USDC Payment Distribution: 20 Signatures with Unique Third Parties', f
       const tpHash = ethers.keccak256(ethers.solidityPacked(["address[]"], [tpAddrs]))
 
       const messageHash = ethers.solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+        ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
         [
+          chainId,
+          diamondAddress,
           user.address,
           BigInt(blockNumber),
           BigInt(verificationData.nonce),

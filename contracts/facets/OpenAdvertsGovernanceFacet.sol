@@ -309,11 +309,10 @@ contract OpenAdvertsGovernanceFacet {
         require(proposal.proposedAdvertPauseCooldownBlocks >= 43200, "Pause cooldown too short"); // 1 day min
         require(proposal.proposedAdvertPauseCooldownBlocks <= 1296000, "Pause cooldown too long"); // ~30 days max
 
-        // Payout batch limit: 1 to 1000 signatures
-        require(
-            proposal.proposedMaxSignaturesPerBatch >= 1 && proposal.proposedMaxSignaturesPerBatch <= 1000,
-            "maxSignaturesPerBatch must be 1-1000"
-        );
+        // Payout batch limit: 1 to 75 signatures. Upper bound is a gas-safety rail: processReward gas
+        // is quadratic in batch size, and 75 unique-6-TP sigs on the uncapped POL path is ~15M gas
+        // (~50% of Polygon's 30M block). Governance must never be able to set an unmineable batch size.
+        require(proposal.proposedMaxSignaturesPerBatch >= 1 && proposal.proposedMaxSignaturesPerBatch <= 75, "maxSignaturesPerBatch must be 1-75");
     }
 
     /**
@@ -403,10 +402,12 @@ contract OpenAdvertsGovernanceFacet {
                 // cleared immediately after; a revert in the cut reverts the whole tx (and the flag).
                 LibOpenAdvertsBootstrapStorage.BootstrapStruct storage bs = LibOpenAdvertsBootstrapStorage.bootstrapStorage();
                 bs.governanceCutInProgress = true;
-                IDiamondCut(address(this)).diamondCut(cutsToRatify, address(0), "");
+                // try/catch so a rejected cut (invalid, or one DiamondCutFacet blocks for removing a
+                // protected selector) fails the proposal and is cleaned up, instead of leaving it stuck.
+                try IDiamondCut(address(this)).diamondCut(cutsToRatify, address(0), "") {
+                    proposalPassed = true;
+                } catch {}
                 bs.governanceCutInProgress = false;
-
-                proposalPassed = true;
             }
         }
 
@@ -610,12 +611,17 @@ contract OpenAdvertsGovernanceFacet {
                 if (availableAdmin > 0) {
                     IERC20 usdcToken = IERC20(aas.usdcTokenAddress);
 
-                    // Transfer USDC to outgoing admin
-                    usdcToken.safeTransfer(outgoingAdmin, availableAdmin);
-
-                    // Update tracking
-                    tokenStorage.adminWithdrawnUSDC += availableAdmin;
-                    tokenStorage.lastKnownUSDCBalance = usdcToken.balanceOf(address(this));
+                    // Non-blocking: a failed USDC transfer (token pause / blacklist) must never block
+                    // the ownership transfer, or a hostile incumbent could keep power. On failure the
+                    // commission stays accounted and withdrawable via withdrawAdminUSDC().
+                    try usdcToken.transfer(outgoingAdmin, availableAdmin) returns (bool ok) {
+                        if (ok) {
+                            tokenStorage.adminWithdrawnUSDC += availableAdmin;
+                            tokenStorage.lastKnownUSDCBalance = usdcToken.balanceOf(address(this));
+                        }
+                    } catch {
+                        // leave commission unclaimed; ownership transfer proceeds
+                    }
                 }
             }
         }

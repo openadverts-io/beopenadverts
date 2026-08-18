@@ -124,7 +124,7 @@ describe("OpenAdvertsAdvertPOLFactoryFacet - createNewProspectPOLAdvertContract"
                     proposedAdminApplicantFeeInPolWei: ethers.parseEther("1.0"),
                     proposedAdminVoteDeadlineInBlocks: 7200,
                     proposedAdvertPauseCooldownBlocks: 7200,
-                    proposedMaxSignaturesPerBatch: 200,
+                    proposedMaxSignaturesPerBatch: 50,
                     proposedMinViewerClaimPct: 70
                 };
                 

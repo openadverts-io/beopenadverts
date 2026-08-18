@@ -15,8 +15,8 @@
  *   B  20 sigs × 6 TPs — all 120 TP addresses unique   (max TP count per sig)
  *   C   7 sigs × 3 TPs — all 21 TP addresses unique    (mid-range normal batch)
  *   D   7 sigs × 3 TPs — 3 fixed TPs repeated          (deduplication path)
- *   E 200 sigs × 3 TPs — all 600 TP addresses unique   (max batch, all unique)
- *   F 200 sigs × 3 TPs — 3 fixed TPs repeated          (deduplication at scale)
+ *   E  50 sigs × 3 TPs — all 150 TP addresses unique   (governance max batch, all unique)
+ *   F  50 sigs × 3 TPs — 3 fixed TPs repeated          (deduplication at scale)
  */
 
 const { ethers }      = require('hardhat')
@@ -86,14 +86,16 @@ function recordGas (entry) {
   console.log(`\n   📊  ${entry.scenario} | gas=${gasStr}`)
 }
 
-async function createSignature (signingWallet, viewerAddress, blockNumber, verificationData, tpAddresses, advertBounty) {
+async function createSignature (chainId, diamondAddress, signingWallet, viewerAddress, blockNumber, verificationData, tpAddresses, advertBounty) {
   const tpCount    = BigInt(tpAddresses.length)
   const paddedHex  = tpAddresses.map(a => ethers.zeroPadValue(a, 32)).join('').replace(/0x/g, '')
   const tpHash     = ethers.keccak256('0x' + paddedHex)
 
   const messageHash = ethers.solidityPackedKeccak256(
-    ['address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
+    ['uint256', 'address', 'address', 'uint256', 'uint256', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
     [
+      chainId,
+      diamondAddress,
       viewerAddress,
       BigInt(blockNumber),
       BigInt(verificationData.nonce),
@@ -209,7 +211,7 @@ async function deployGasFixture (mockProviderContractName) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function runScenario (fixture, sigCount, tpSets, scenario, scenarioDesc) {
-  const { polContract, polAdvertAddress, designatedAffiliateAddress, user, signingWallet, advertBounty, mockProviderAddress } = fixture
+  const { polContract, polAdvertAddress, designatedAffiliateAddress, user, signingWallet, advertBounty, mockProviderAddress, diamondAddress } = fixture
 
   console.log(`\n   ▶  Scenario ${scenario}: ${scenarioDesc}`)
 
@@ -234,11 +236,14 @@ async function runScenario (fixture, sigCount, tpSets, scenario, scenarioDesc) {
   const currentBlock = await ethers.provider.getBlockNumber()
   const signatures   = []
   const blockNumbers = []
+  const chainId      = (await ethers.provider.getNetwork()).chainId
 
   for (let i = 0; i < sigCount; i++) {
     const blockNumber = currentBlock - (sigCount - i)
     blockNumbers.push(blockNumber)
     const sig = await createSignature(
+      chainId,
+      diamondAddress,
       signingWallet,
       user.address,
       blockNumber,
@@ -384,19 +389,14 @@ describe('GAS POST-REFACTOR: processReward() — AFTER Memory Refactor', functio
     await runScenario(f, SIG_COUNT, tpSets, 'D', '7 sigs × 3 TPs, 3 fixed TPs deduplicated across all 7 sigs')
   })
 
-  it('Scenario E: 200 sigs × 3 TPs, all unique (600 unique TPs)', async function () {
+  it('Scenario E: 50 sigs × 3 TPs, all unique (150 unique TPs — governance max batch)', async function () {
     const f = await loadFixture(deployBaseFixture)
-    const SIG_COUNT   = 200
+    const SIG_COUNT   = 50
     const TPS_PER_SIG = 3
-    const TOTAL_TPS   = SIG_COUNT * TPS_PER_SIG
+    const TOTAL_TPS   = SIG_COUNT * TPS_PER_SIG // 150
 
-    const allTPAddresses = [
-      ...f.signerPool.map(s => s.address),
-      ...Array.from(
-        { length: TOTAL_TPS - f.signerPool.length },
-        (_, i) => generateDeterministicAddress(i)
-      )
-    ]
+    // 150 unique TPs fit within the ~193-address signer pool; no generated addresses needed.
+    const allTPAddresses = f.signerPool.map(s => s.address)
 
     const tpSets = Array.from({ length: SIG_COUNT }, (_, i) => [
       allTPAddresses[i * TPS_PER_SIG + 0],
@@ -404,15 +404,12 @@ describe('GAS POST-REFACTOR: processReward() — AFTER Memory Refactor', functio
       allTPAddresses[i * TPS_PER_SIG + 2]
     ])
 
-    console.log(`\n   ℹ️  Scenario E uses ${f.signerPool.length} signer addresses + ${TOTAL_TPS - f.signerPool.length} generated addresses`)
-    console.log(`      If this exceeds Hardhat's 50M gas limit the result will be recorded as EXCEEDED_BLOCK_GAS_LIMIT`)
-
-    await runScenario(f, SIG_COUNT, tpSets, 'E', '200 sigs × 3 TPs, all unique (600 unique TPs — includes generated addresses)')
+    await runScenario(f, SIG_COUNT, tpSets, 'E', '50 sigs × 3 TPs, all unique (150 unique TPs — governance max batch)')
   })
 
-  it('Scenario F: 200 sigs × 3 TPs, fixed TPs repeated at scale (deduplication)', async function () {
+  it('Scenario F: 50 sigs × 3 TPs, fixed TPs repeated at scale (deduplication)', async function () {
     const f = await loadFixture(deployBaseFixture)
-    const SIG_COUNT = 200
+    const SIG_COUNT = 50
     const fixedTPs = [
       f.signerPool[0].address,
       f.signerPool[1].address,
@@ -420,9 +417,8 @@ describe('GAS POST-REFACTOR: processReward() — AFTER Memory Refactor', functio
     ]
     const tpSets = Array.from({ length: SIG_COUNT }, () => [...fixedTPs])
 
-    console.log(`\n   ℹ️  Scenario F: same 3 TPs across 200 sigs — only 3 unique TP recipients in payout data`)
-    console.log(`      If this exceeds Hardhat's 50M gas limit the result will be recorded as EXCEEDED_BLOCK_GAS_LIMIT`)
+    console.log(`\n   ℹ️  Scenario F: same 3 TPs across 50 sigs — only 3 unique TP recipients in payout data`)
 
-    await runScenario(f, SIG_COUNT, tpSets, 'F', '200 sigs × 3 TPs, 3 fixed TPs deduplicated across 200 sigs')
+    await runScenario(f, SIG_COUNT, tpSets, 'F', '50 sigs × 3 TPs, 3 fixed TPs deduplicated across 50 sigs')
   })
 })

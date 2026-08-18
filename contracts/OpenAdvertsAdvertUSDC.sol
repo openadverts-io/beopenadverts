@@ -879,7 +879,7 @@ contract OpenAdvertsAdvertUSDC is ReentrancyGuard {
         // ✅ INTENTIONAL (currency-specific): USDC uses ERC-20 transfers (~30–65k gas each), far
         // costlier than POL's native sends (~9–21k). This 100-recipient ceiling keeps a single
         // USDC payout batch comfortably within Polygon's ~30M block gas limit. It is deliberately
-        // TIGHTER than the governance maxSignaturesPerBatch (default 200): a batch whose unique
+        // TIGHTER than the governance maxSignaturesPerBatch (default 50): a batch whose unique
         // recipients (viewer + affiliate + up to 6 TP/sig, deduplicated) would exceed 100 must be
         // split by the caller. Do NOT remove this to "match" the uncapped POL contract — the gas
         // asymmetry is the reason it exists. See PROJECTDOCS "Batch Processing".

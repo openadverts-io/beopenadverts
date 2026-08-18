@@ -7,8 +7,25 @@ pragma solidity 0.8.22;
 /******************************************************************************/
 
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
+import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibOpenAdvertsTokenStorage} from "../libraries/LibOpenAdvertsTokenStorage.sol";
+import {LibOpenAdvertsGovernanceStorage} from "../libraries/LibOpenAdvertsGovernanceStorage.sol";
+
+// Minimal interface used only to derive governance selectors at compile time for the protected-selector
+// guard. Signatures must match OpenAdvertsGovernanceFacet exactly (verified by a test).
+interface IOpenAdvertsGovSelectors {
+    function createProposal(
+        LibOpenAdvertsGovernanceStorage.ProposalType,
+        LibOpenAdvertsGovernanceStorage.QuotaProposal memory,
+        uint256,
+        IDiamondCut.FacetCut[] memory
+    ) external;
+
+    function ratifyUpgrade() external;
+
+    function voteOnProposal(bool) external;
+}
 import {LibOpenAdvertsBootstrapStorage} from "../libraries/LibOpenAdvertsBootstrapStorage.sol";
 
 // Remember to add the loupe functions from DiamondLoupeFacet to the diamond.
@@ -36,6 +53,28 @@ contract DiamondCutFacet is IDiamondCut {
             require(!bs.directCutFinalized, "Direct diamondCut disabled post-bootstrap; use governance");
         }
         LibDiamond.diamondCut(_diamondCut, _init, _calldata);
+        _assertDiamondIntegrity();
+    }
+
+    /// @dev Reverts if a cut removed a selector the diamond needs to stay upgradeable and governable
+    ///      (diamondCut, the loupe functions, and the core governance entrypoints). Runs after every
+    ///      cut (owner or governance); a removal reverts the whole transaction. Replacements (facet
+    ///      upgrades that keep the selector) stay allowed.
+    function _assertDiamondIntegrity() private view {
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        bytes4[8] memory core = [
+            IDiamondCut.diamondCut.selector,
+            IDiamondLoupe.facets.selector,
+            IDiamondLoupe.facetFunctionSelectors.selector,
+            IDiamondLoupe.facetAddresses.selector,
+            IDiamondLoupe.facetAddress.selector,
+            IOpenAdvertsGovSelectors.ratifyUpgrade.selector,
+            IOpenAdvertsGovSelectors.createProposal.selector,
+            IOpenAdvertsGovSelectors.voteOnProposal.selector
+        ];
+        for (uint256 i = 0; i < core.length; i++) {
+            require(ds.selectorToFacetAndPosition[core[i]].facetAddress != address(0), "Cut removed a protected selector");
+        }
     }
 
     // Do we need to add a receive function to forward funds to the diamond.sol here?
