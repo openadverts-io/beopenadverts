@@ -622,7 +622,7 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                 const requiredFee = currentQuotas.adminApplicantFeeInPolWei;
 
                 await expect(
-                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1", {
+                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1", ethers.Wallet.createRandom().address, {
                         value: requiredFee - 1n
                     })
                 ).to.be.revertedWith("Insufficient fee for admin application");
@@ -633,7 +633,7 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                 const requiredFee = currentQuotas.adminApplicantFeeInPolWei;
 
                 await expect(
-                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1", {
+                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1", ethers.Wallet.createRandom().address, {
                         value: requiredFee
                     })
                 ).to.not.be.reverted;
@@ -656,7 +656,7 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                 const requiredFee = currentQuotas.adminApplicantFeeInPolWei;
 
                 await expect(
-                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1-duplicate", {
+                    governanceFacet.connect(user1).applyAsNewAdmin("admin-applicant-1-duplicate", ethers.Wallet.createRandom().address, {
                         value: requiredFee
                     })
                 ).to.be.revertedWith("You have already declared yourself an applicant for this round.");
@@ -669,7 +669,7 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
 
                 const balanceBefore = await ethers.provider.getBalance(user3.address);
 
-                const tx = await governanceFacet.connect(user3).applyAsNewAdmin("admin-applicant-3", {
+                const tx = await governanceFacet.connect(user3).applyAsNewAdmin("admin-applicant-3", ethers.Wallet.createRandom().address, {
                     value: excessPayment
                 });
                 const receipt = await tx.wait();
@@ -694,7 +694,7 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                 // (user1 has already applied in previous tests)
                 const currentQuotas = await governanceFacet.getAllCurrentQuotas();
                 const requiredFee = currentQuotas.adminApplicantFeeInPolWei;
-                await governanceFacet.connect(user4).applyAsNewAdmin("admin-vote-test", {
+                await governanceFacet.connect(user4).applyAsNewAdmin("admin-vote-test", ethers.Wallet.createRandom().address, {
                     value: requiredFee
                 });
             });
@@ -817,14 +817,16 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
             });
 
             it("✅ Should ALLOW anyone to query proposal state", async function () {
-                const [state, canRatify] = await governanceFacet.connect(maliciousUser).getProposalState();
+                const governanceHelperFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", governanceFacet.target);
+                const [state, canRatify] = await governanceHelperFacet.connect(maliciousUser).getProposalState();
 
                 console.log(`   📊 Proposal state: ${state}, Can ratify: ${canRatify}`);
             });
 
             it("✅ Should ALLOW anyone to query voting history", async function () {
+                const governanceHelperFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", governanceFacet.target);
                 const [proposalIds, supportVotes, denyVotes, votedFor] = 
-                    await governanceFacet.connect(maliciousUser).getUserProposalVotingHistory(user2.address);
+                    await governanceHelperFacet.connect(maliciousUser).getUserProposalVotingHistory(user2.address);
 
                 console.log(`   📊 User voted on ${proposalIds.length} proposals`);
             });

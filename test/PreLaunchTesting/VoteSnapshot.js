@@ -121,10 +121,10 @@ describe("Phase 2 — Lazy Snapshot-Based Vote Weighting", function () {
         it("bumps id when the first applicant opens an admin election round", async function () {
             const fee = ethers.parseEther("500");
             expect(await tokenFacet.currentSnapshotId()).to.equal(0);
-            await governance.connect(alice).applyAsNewAdmin("alice-app", { value: fee });
+            await governance.connect(alice).applyAsNewAdmin("alice-app", ethers.Wallet.createRandom().address, { value: fee });
             expect(await tokenFacet.currentSnapshotId()).to.equal(1);
             // A second applicant in the SAME round does NOT bump again.
-            await governance.connect(bob).applyAsNewAdmin("bob-app", { value: fee });
+            await governance.connect(bob).applyAsNewAdmin("bob-app", ethers.Wallet.createRandom().address, { value: fee });
             expect(await tokenFacet.currentSnapshotId()).to.equal(1);
         });
     });
@@ -172,7 +172,7 @@ describe("Phase 2 — Lazy Snapshot-Based Vote Weighting", function () {
     describe("voteForNewAdmin uses admin-round snapshot balance", function () {
         it("fresh transfer after admin round opens carries zero weight", async function () {
             const fee = ethers.parseEther("500");
-            await governance.connect(alice).applyAsNewAdmin("alice-app", { value: fee });
+            await governance.connect(alice).applyAsNewAdmin("alice-app", ethers.Wallet.createRandom().address, { value: fee });
             // Snapshot id = 1 now covers this admin round.
             await tokenFacet.connect(owner).transfer(carol.address, ethers.parseEther("2000"));
             await mine(5);
@@ -186,7 +186,7 @@ describe("Phase 2 — Lazy Snapshot-Based Vote Weighting", function () {
             await tokenFacet.connect(owner).transfer(bob.address, ethers.parseEther("3000"));
             await mine(5);
             const fee = ethers.parseEther("500");
-            await governance.connect(alice).applyAsNewAdmin("alice-app", { value: fee });
+            await governance.connect(alice).applyAsNewAdmin("alice-app", ethers.Wallet.createRandom().address, { value: fee });
             await mine(5);
 
             await governance.connect(bob).voteForNewAdmin(alice.address);
@@ -219,7 +219,7 @@ describe("Phase 2 — Lazy Snapshot-Based Vote Weighting", function () {
 
             // Snapshot id 2: admin election opens.
             const fee = ethers.parseEther("500");
-            await governance.connect(carol).applyAsNewAdmin("carol-app", { value: fee });
+            await governance.connect(carol).applyAsNewAdmin("carol-app", ethers.Wallet.createRandom().address, { value: fee });
             expect(await tokenFacet.currentSnapshotId()).to.equal(2);
 
             // Balance at id=1 should reflect alice's pre-transfer amount (4000).

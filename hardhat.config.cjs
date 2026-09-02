@@ -22,9 +22,9 @@ task("accounts", "Prints the list of accounts", async () => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 
-const GOERLI_RPC_URL = process.env.GOERLI_RPC_URL;
+// const GOERLI_RPC_URL = process.env.GOERLI_RPC_URL;
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL;
-const AMOY_RPC_URL = process.env.AMOY_RPC_URL;
+// const AMOY_RPC_URL = process.env.AMOY_RPC_URL;
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const PRIVATE_KEY_HH1 = process.env.PRIVATE_KEY_HH1;
@@ -105,21 +105,21 @@ module.exports = {
       accounts: PRIVATEKEYMAINNET ? [PRIVATEKEYMAINNET] : [],
       chainId: 137,
     },
-    amoy: {
-      url: AMOY_RPC_URL,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 80002,
-    },
-    goerli: {
-      url: GOERLI_RPC_URL,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 5,
-    },
-    rinkeby: {
-      url: "RINKEBY_RPC_URL",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 4,
-    },
+    // amoy: {
+    //   url: AMOY_RPC_URL,
+    //   accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    //   chainId: 80002,
+    // },
+    // goerli: {
+    //   url: GOERLI_RPC_URL,
+    //   accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    //   chainId: 5,
+    // },
+    // rinkeby: {
+    //   url: "RINKEBY_RPC_URL",
+    //   accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    //   chainId: 4,
+    // },
     hardhat: {
       chainId: 1337, // ✅ ADD: Set hardhat network to 31337
       accounts: {
@@ -139,7 +139,7 @@ module.exports = {
     localhost: {
       url: "http://127.0.0.1:8545/",
       chainId: 1337, // ✅ Keep as 31337
-      accounts: [PRIVATE_KEY_HH1],
+      accounts: PRIVATE_KEY_HH1 ? [PRIVATE_KEY_HH1] : [],
       hardfork: "london",
     },
   },

@@ -64,6 +64,12 @@ library LibOpenAdvertsPayoutStorage {
         // (1:1 designated affiliate per advert), so the third key is removed.
         // Enforced in claimReward() against maxBlockSeparationAdvertisement.
         mapping(address => mapping(address => uint256)) viewerLastEngagementBlock;
+        // Secondary-signer cutover (owner-immediate, default off). When secondarySigningEnabled, a
+        // reward/gate signature is verified against secondarySigningAddress iff its reference block
+        // >= secondarySigningCutoverBlock, otherwise against the primary openAdvertsSigningAddress.
+        address secondarySigningAddress;
+        bool secondarySigningEnabled;
+        uint256 secondarySigningCutoverBlock;
     }
     function openAdvertsPayoutStorage() internal pure returns (OpenAdvertsPayoutStruct storage pas) {
         bytes32 position = STORAGE_POSITION;

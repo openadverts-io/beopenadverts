@@ -422,7 +422,7 @@ describe("🔒 Flash Loan Protection Tests - All Voting Facets", function () {
                 const currentQuotas = await governanceFacet.getAllCurrentQuotas();
                 const requiredFee = currentQuotas.adminApplicantFeeInPolWei;
                 
-                await governanceFacet.connect(user1).applyAsNewAdmin("flash-test-admin", {
+                await governanceFacet.connect(user1).applyAsNewAdmin("flash-test-admin", ethers.Wallet.createRandom().address, {
                     value: requiredFee
                 });
                 

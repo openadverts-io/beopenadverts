@@ -1186,7 +1186,7 @@ describe("OpenAdvertsAdvertUSDCPriceFacet - getPOLUSDPrice() Tests", function ()
             // create new USDC contract
             const usdcFactoryFacet = await ethers.getContractAt("OpenAdvertsAdvertUSDCFactoryFacet", diamondAddress);
             const advertisersFacet = await ethers.getContractAt("OpenAdvertsAdvertisersFacet", diamondAddress);
-            const governanceFacet = await ethers.getContractAt("OpenAdvertsGovernanceFacet", diamondAddress);
+            const governanceHelperFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", diamondAddress);
 
             const usdcQuotas = await usdcFactoryFacet.getUSDCAdvertisementQuotas();
             console.log("usdcQuotas:", usdcQuotas);
@@ -1313,7 +1313,7 @@ describe("OpenAdvertsAdvertUSDCPriceFacet - getPOLUSDPrice() Tests", function ()
             console.log('â”€'.repeat(80));
 
             // Get commission rates
-            const [platformCommission, adminCommission] = await governanceFacet.getPlatformAndAdminCommissions();
+            const [platformCommission, adminCommission] = await governanceHelperFacet.getPlatformAndAdminCommissions();
             console.log(`   ðŸ“Š Commission Rates:`);
             console.log(`      - Platform Commission: ${platformCommission}%`);
             console.log(`      - Admin Commission (from platform): ${adminCommission}%`);

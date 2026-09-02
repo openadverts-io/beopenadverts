@@ -66,14 +66,16 @@ interface IClaimPercentagesProviderForQuery {
  *   Priority 1 — getPriceDataWithRequirements()
  *   Priority 1 — getUserVotingHistoryPaginated(address,uint256,uint256)
  *
- * PRE-EXISTING BUG DOCUMENTED (do not fix here — separate work item):
- *   ratifyNewAdmin() calls `delete govStorage.proposedAdminAddresses` after each
- *   election round.  The _getAdminVotingData helper in OpenAdvertsQueryFacet
- *   iterates (round 0..adminVoteId) × proposedAdminAddresses (current only).
- *   Votes cast in previous rounds against now-deleted candidates are silently
- *   dropped.  getUserVotingHistoryPaginated inherits this same behaviour to
- *   stay consistent with getUserCompleteDetailedVotingHistory.  Fixing it
- *   requires persisting per-round candidate snapshots in storage.
+ * KNOWN LIMITATION — on-chain view only (indexer-serviceable):
+ *   ratifyNewAdmin()/clearFailedElection() call `delete govStorage.proposedAdminAddresses`
+ *   after each election round.  The _getAdminVotingData helper in OpenAdvertsQueryFacet
+ *   iterates (round 0..adminVoteId) × proposedAdminAddresses (current only), so votes cast
+ *   in previous rounds against now-deleted candidates are absent from these view helpers.
+ *   getUserVotingHistoryPaginated inherits this same behaviour to stay consistent with
+ *   getUserCompleteDetailedVotingHistory.  History IS preserved off-chain: the concluded
+ *   round's roster is emitted via AdminCandidatesSnapshot(adminVoteId, candidates) and the
+ *   per-round tallies survive in totalVotesPerAdminCandidate[round][candidate].  A full
+ *   on-chain fix would require persisting per-round candidate snapshots in storage.
  *
  * STALENESS LOGIC NOTE:
  *   getPriceDataWithRequirements intentionally duplicates the 3600-second

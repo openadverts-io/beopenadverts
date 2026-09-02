@@ -190,7 +190,8 @@ describe("OpenAdvertsAdvertisersFacet - Core Functions", function () {
 
             // Initialize factory and governance facets
             advertPOLFactoryFacet = await ethers.getContractAt("OpenAdvertsAdvertPOLFactoryFacet", diamondAddress);
-            governanceFacet = await ethers.getContractAt("OpenAdvertsGovernanceFacet", diamondAddress);
+            // Read-only governance views were split into OpenAdvertsGovernanceHelperFacet; this handle targets it.
+            governanceFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", diamondAddress);
             gateSigner = await gate.installGateSigner(diamondAddress, owner);
             
             console.log("✅ Factory facets initialized");

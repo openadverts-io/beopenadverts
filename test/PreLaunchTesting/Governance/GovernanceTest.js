@@ -757,7 +757,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const applicationFee = ethers.parseEther('1000')
         
         await expect(
-          governanceFacet.connect(addr1).applyAsNewAdmin("test-storage-id", { value: applicationFee })
+          governanceFacet.connect(addr1).applyAsNewAdmin("test-storage-id", ethers.Wallet.createRandom().address, { value: applicationFee })
         ).to.not.be.reverted
         
         const snap = await queryV2Facet.getGovernanceSnapshot()
@@ -770,7 +770,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const insufficientFee = ethers.parseEther('5')
         
         await expect(
-          governanceFacet.applyAsNewAdmin("test-storage-id", { value: insufficientFee })
+          governanceFacet.applyAsNewAdmin("test-storage-id", ethers.Wallet.createRandom().address, { value: insufficientFee })
         ).to.be.revertedWith('Insufficient fee for admin application')
       })
 
@@ -790,7 +790,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const balanceBefore = await ethers.provider.getBalance(addr1.address)
         console.log('Balance Before:', ethers.formatEther(balanceBefore), 'ETH')
         
-        const tx = await governanceFacet.connect(addr1).applyAsNewAdmin("test-storage-id", { value: excessFee })
+        const tx = await governanceFacet.connect(addr1).applyAsNewAdmin("test-storage-id", ethers.Wallet.createRandom().address, { value: excessFee })
         const receipt = await tx.wait()
         const gasUsed = receipt.gasUsed * receipt.gasPrice
         
@@ -808,10 +808,10 @@ describe('OpenAdvertsGovernanceFacet', function () {
         
         const fee = ethers.parseEther('1000')
         
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: fee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: fee })
         
         await expect(
-          governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-2", { value: fee })
+          governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-2", ethers.Wallet.createRandom().address, { value: fee })
         ).to.be.revertedWith('You have already declared yourself an applicant for this round.')
       })
 
@@ -820,7 +820,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         
         const blockBefore = await ethers.provider.getBlockNumber()
         
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         const snap = await queryV2Facet.getGovernanceSnapshot()
         expect(snap.adminVoteDeadline).to.be.greaterThan(blockBefore)
@@ -831,9 +831,9 @@ describe('OpenAdvertsGovernanceFacet', function () {
         
         const fee = ethers.parseEther('1000')
         
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: fee })
-        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", { value: fee })
-        await governanceFacet.connect(addr3).applyAsNewAdmin("storage-id-3", { value: fee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: fee })
+        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", ethers.Wallet.createRandom().address, { value: fee })
+        await governanceFacet.connect(addr3).applyAsNewAdmin("storage-id-3", ethers.Wallet.createRandom().address, { value: fee })
         
         const snap = await queryV2Facet.getGovernanceSnapshot()
         expect(snap.proposedAdmins).to.have.length(4)
@@ -848,7 +848,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
       it('should allow applicants to revoke their application', async function () {
         const { governanceFacet, queryV2Facet, addr1 } = await loadFixture(deployGovernanceFixture)
         
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         await expect(governanceFacet.connect(addr1).revokeAdminApplication()).to.not.be.reverted
         
@@ -870,9 +870,9 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const fee = ethers.parseEther('1000')
         
         // Apply as admins
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: fee })
-        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", { value: fee })
-        await governanceFacet.connect(addr3).applyAsNewAdmin("storage-id-3", { value: fee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: fee })
+        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", ethers.Wallet.createRandom().address, { value: fee })
+        await governanceFacet.connect(addr3).applyAsNewAdmin("storage-id-3", ethers.Wallet.createRandom().address, { value: fee })
         
         // Revoke middle application
         await governanceFacet.connect(addr2).revokeAdminApplication()
@@ -895,14 +895,15 @@ describe('OpenAdvertsGovernanceFacet', function () {
         await advanceBlocksForVoting(15);
         
         // Apply as admin
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         // Vote for candidate
         await expect(
           governanceFacet.connect(addr2).voteForNewAdmin(addr1.address)
         ).to.not.be.reverted
         
-        const [proposedOwners, totalVotes, storageIds] = await governanceFacet.getProposedOwnersAndVotes()
+        const governanceHelperFacet = await ethers.getContractAt('OpenAdvertsGovernanceHelperFacet', governanceFacet.target)
+        const [proposedOwners, totalVotes, storageIds] = await governanceHelperFacet.getProposedOwnersAndVotes()
         console.log('Proposed Owners:', proposedOwners)
         console.log('Total Votes:', totalVotes)
         console.log('Storage IDs:', storageIds)
@@ -925,7 +926,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const { governanceFacet, tokenFacet, owner, addr1, addr2 } = await loadFixture(deployGovernanceFixture)
         
         await tokenFacet.connect(owner).transfer(addr2.address, ethers.parseEther('1000'))
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         await advanceBlocksForVoting(15);
 
         // First vote
@@ -945,13 +946,14 @@ describe('OpenAdvertsGovernanceFacet', function () {
         await tokenFacet.connect(owner).transfer(addr3.address, ethers.parseEther('1500'))
         await advanceBlocksForVoting(15);
         
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         await governanceFacet.connect(addr2).voteForNewAdmin(addr1.address) // 1000 votes
         await advanceBlocksForVoting(15);
         await governanceFacet.connect(addr3).voteForNewAdmin(addr1.address) // 1500 votes
         
-        const [proposedOwners, totalVotes] = await governanceFacet.getProposedOwnersAndVotes()
+        const governanceHelperFacet = await ethers.getContractAt('OpenAdvertsGovernanceHelperFacet', governanceFacet.target)
+        const [proposedOwners, totalVotes] = await governanceHelperFacet.getProposedOwnersAndVotes()
         // addr1 is at index 1 (index 0 is incumbent admin)
         // Votes should accumulate: 1000 + 1500 = 2500
         expect(totalVotes[1]).to.equal(ethers.parseEther('2500'))
@@ -972,7 +974,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         await advanceBlocksForVoting(15);
         
         const adminFee = snap.currentQuotas.adminApplicantFeeInPolWei
-        await governanceFacet.connect(addr1).applyAsNewAdmin("candidate-storage-id", { value: adminFee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("candidate-storage-id", ethers.Wallet.createRandom().address, { value: adminFee })
         await governanceFacet.connect(addr2).voteForNewAdmin(addr1.address)
 
         // Advance past the adminVoteDeadline (read from storage to be robust against quota changes)
@@ -1008,7 +1010,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         // Sub-quorum stake so no candidate clears the change quorum.
         await tokenFacet.connect(owner).transfer(addr2.address, ethers.parseEther('1000'))
         await advanceBlocksForVoting(15)
-        await governanceFacet.connect(addr1).applyAsNewAdmin('round-1', { value: adminFee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin('round-1', ethers.Wallet.createRandom().address, { value: adminFee })
         await governanceFacet.connect(addr2).voteForNewAdmin(addr1.address) // ~1000 tokens << 51% quorum
 
         const snap2 = await queryV2Facet.getGovernanceSnapshot()
@@ -1025,7 +1027,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         expect(after.adminVoteDeadline).to.equal(0n)
 
         // Fresh round: addr1 can re-apply, which only succeeds because adminVoteId advanced.
-        await expect(governanceFacet.connect(addr1).applyAsNewAdmin('round-2', { value: adminFee })).to.not.be.reverted
+        await expect(governanceFacet.connect(addr1).applyAsNewAdmin('round-2', ethers.Wallet.createRandom().address, { value: adminFee })).to.not.be.reverted
       })
 
       it('ratifyNewAdmin() and clearFailedElection() are mutually exclusive after the deadline', async function () {
@@ -1039,7 +1041,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
 
         await tokenFacet.connect(owner).transfer(addr2.address, votingAmount)
         await advanceBlocksForVoting(15)
-        await governanceFacet.connect(addr1).applyAsNewAdmin('cand', { value: adminFee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin('cand', ethers.Wallet.createRandom().address, { value: adminFee })
         await governanceFacet.connect(addr2).voteForNewAdmin(addr1.address)
 
         const snap2 = await queryV2Facet.getGovernanceSnapshot()
@@ -1058,7 +1060,8 @@ describe('OpenAdvertsGovernanceFacet', function () {
       it('should return empty arrays when no admin candidates', async function () {
         const { governanceFacet } = await loadFixture(deployGovernanceFixture)
         
-        const [proposedOwners, forVotes, againstVotes] = await governanceFacet.getProposedOwnersAndVotes()
+        const governanceHelperFacet = await ethers.getContractAt('OpenAdvertsGovernanceHelperFacet', governanceFacet.target)
+        const [proposedOwners, forVotes, againstVotes] = await governanceHelperFacet.getProposedOwnersAndVotes()
         
         expect(proposedOwners).to.have.length(0)
         expect(forVotes).to.have.length(0)
@@ -1072,13 +1075,14 @@ describe('OpenAdvertsGovernanceFacet', function () {
         await advanceBlocksForVoting(15);
         
         // Apply as admins
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
-        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr2).applyAsNewAdmin("storage-id-2", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         // Vote
         await governanceFacet.connect(addr3).voteForNewAdmin(addr1.address)
         
-        const [proposedOwners, forVotes, againstVotes] = await governanceFacet.getProposedOwnersAndVotes()
+        const governanceHelperFacet = await ethers.getContractAt('OpenAdvertsGovernanceHelperFacet', governanceFacet.target)
+        const [proposedOwners, forVotes, againstVotes] = await governanceHelperFacet.getProposedOwnersAndVotes()
         
         expect(proposedOwners).to.have.length(3)
         expect(forVotes).to.have.length(3)
@@ -1154,7 +1158,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const { governanceFacet, queryV2Facet, addr1 } = await loadFixture(deployGovernanceFixture)
         
         // Apply and then start new round
-        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", { value: ethers.parseEther('1000') })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("storage-id-1", ethers.Wallet.createRandom().address, { value: ethers.parseEther('1000') })
         
         const snap = await queryV2Facet.getGovernanceSnapshot()
         expect(snap.proposedAdmins).to.have.length(2)
@@ -1190,13 +1194,13 @@ describe('OpenAdvertsGovernanceFacet', function () {
         const fee = ethers.parseEther('1000')
         
         // Multiple applications
-        const gas1 = await governanceFacet.connect(addr1).applyAsNewAdmin.estimateGas("string", { value: fee })
+        const gas1 = await governanceFacet.connect(addr1).applyAsNewAdmin.estimateGas("string", ethers.Wallet.createRandom().address, { value: fee })
 
-        await governanceFacet.connect(addr1).applyAsNewAdmin("string", { value: fee })
-        const gas2 = await governanceFacet.connect(addr2).applyAsNewAdmin.estimateGas("string", { value: fee })
+        await governanceFacet.connect(addr1).applyAsNewAdmin("string", ethers.Wallet.createRandom().address, { value: fee })
+        const gas2 = await governanceFacet.connect(addr2).applyAsNewAdmin.estimateGas("string", ethers.Wallet.createRandom().address, { value: fee })
 
-        await governanceFacet.connect(addr2).applyAsNewAdmin("string", { value: fee })
-        const gas3 = await governanceFacet.connect(addr3).applyAsNewAdmin.estimateGas("string", { value: fee })
+        await governanceFacet.connect(addr2).applyAsNewAdmin("string", ethers.Wallet.createRandom().address, { value: fee })
+        const gas3 = await governanceFacet.connect(addr3).applyAsNewAdmin.estimateGas("string", ethers.Wallet.createRandom().address, { value: fee })
 
         // Gas should not increase dramatically
         expect(gas2).to.be.lessThan(gas1 * 2n)
@@ -1254,7 +1258,7 @@ describe('OpenAdvertsGovernanceFacet', function () {
     await advanceBlocksForVoting(20)
     
     const adminFee = snap.currentQuotas.adminApplicantFeeInPolWei
-    await governanceFacet.connect(addr1).applyAsNewAdmin("candidate-storage-id", { value: adminFee })
+    await governanceFacet.connect(addr1).applyAsNewAdmin("candidate-storage-id", ethers.Wallet.createRandom().address, { value: adminFee })
     await governanceFacet.connect(addr2).voteForNewAdmin(addr1.address)
 
     // Advance past the adminVoteDeadline (read from storage to be robust against quota changes)
@@ -1267,7 +1271,8 @@ describe('OpenAdvertsGovernanceFacet', function () {
     // Check if ratifyNewAdmin will actually call setContractOwner
     console.log('Current contract owner:', await ownershipFacet.owner())
     console.log('Admin candidate:', addr1.address)
-    console.log('Votes for candidate:', ethers.formatEther((await governanceFacet.getProposedOwnersAndVotes())[1][0]))
+    const governanceHelperFacet = await ethers.getContractAt('OpenAdvertsGovernanceHelperFacet', governanceFacet.target)
+    console.log('Votes for candidate:', ethers.formatEther((await governanceHelperFacet.getProposedOwnersAndVotes())[1][0]))
     console.log('Required quorum:', ethers.formatEther(quorumAmount))
     
     // Test the ratification

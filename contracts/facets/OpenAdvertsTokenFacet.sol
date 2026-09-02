@@ -40,6 +40,11 @@ contract OpenAdvertsTokenFacet is ReentrancyGuard {
 
     event BootstrapFinalized(address indexed by);
 
+    // Admin-commission escrow lifecycle (pull-payment fallback for ratifyNewAdmin).
+    event AdminUSDCPaid(address indexed outgoingAdmin, uint256 amount);
+    event AdminUSDCEscrowed(address indexed outgoingAdmin, uint256 amount);
+    event PendingAdminUSDCWithdrawn(address indexed admin, uint256 amount);
+
     using SafeERC20 for IERC20; // SafeERC20 for safe token operations
 
     // mapping(address => uint256) private lastTransferBlock;
@@ -781,6 +786,77 @@ contract OpenAdvertsTokenFacet is ReentrancyGuard {
         totalAllocated = tokenStorage.totalAggregateAdminUSDC;
         withdrawn = tokenStorage.adminWithdrawnUSDC;
         available = totalAllocated - withdrawn;
+    }
+
+    /**
+     * @notice Pays the outgoing admin's accrued USDC commission during ratifyNewAdmin.
+     * @dev Self-call only; NOT nonReentrant because it runs inside ratifyNewAdmin's guard
+     *      (shared slot-0 lock). Non-blocking: a failed push (pause/blacklist) escrows the
+     *      slice to pendingAdminUSDC[outgoingAdmin] instead of reverting, so a hostile
+     *      incumbent cannot block their own unseating. The slice is reserved from the admin
+     *      pool (adminWithdrawnUSDC) regardless of push outcome, so the incoming admin can
+     *      never claim it via withdrawAdminUSDC.
+     */
+    function payoutOutgoingAdminCommission(address outgoingAdmin) external {
+        require(msg.sender == address(this), "Only diamond");
+
+        LibOpenAdvertsTokenStorage.TokenStorage storage tokenStorage = LibOpenAdvertsTokenStorage.tokenStorage();
+        LibOpenAdvertsAdvertisersStorage.OpenAdvertsAdvertisersStruct storage aas = LibOpenAdvertsAdvertisersStorage.openAdvertsAdvertisersStorage();
+
+        if (aas.usdcTokenAddress == address(0)) return;
+
+        processNewUSDCDeposits();
+
+        uint256 availableAdmin = tokenStorage.totalAggregateAdminUSDC - tokenStorage.adminWithdrawnUSDC;
+        if (availableAdmin == 0) return;
+
+        IERC20 usdcToken = IERC20(aas.usdcTokenAddress);
+        // Effects-before-interaction: reserve the slice up front.
+        tokenStorage.adminWithdrawnUSDC += availableAdmin;
+
+        try usdcToken.transfer(outgoingAdmin, availableAdmin) returns (bool ok) {
+            if (ok) {
+                tokenStorage.lastKnownUSDCBalance = usdcToken.balanceOf(address(this));
+                emit AdminUSDCPaid(outgoingAdmin, availableAdmin);
+                return;
+            }
+            // transfer returned false — fall through to escrow
+        } catch {
+            // transfer reverted — fall through to escrow
+        }
+        // Push failed: funds stay in the contract, earmarked for the outgoing admin to pull.
+        tokenStorage.pendingAdminUSDC[outgoingAdmin] += availableAdmin;
+        tokenStorage.totalPendingAdminUSDC += availableAdmin;
+        emit AdminUSDCEscrowed(outgoingAdmin, availableAdmin);
+    }
+
+    /**
+     * @notice Claims USDC commission escrowed when ratifyNewAdmin's push to this address failed.
+     * @dev Checks-effects-interactions; nonReentrant. Claimable by the earmarked address
+     *      regardless of current ownership.
+     */
+    function withdrawPendingAdminUSDC() external nonReentrant {
+        LibOpenAdvertsTokenStorage.TokenStorage storage tokenStorage = LibOpenAdvertsTokenStorage.tokenStorage();
+        LibOpenAdvertsAdvertisersStorage.OpenAdvertsAdvertisersStruct storage aas = LibOpenAdvertsAdvertisersStorage.openAdvertsAdvertisersStorage();
+
+        uint256 amount = tokenStorage.pendingAdminUSDC[msg.sender];
+        require(amount > 0, "No pending admin USDC");
+        tokenStorage.pendingAdminUSDC[msg.sender] = 0;
+        tokenStorage.totalPendingAdminUSDC -= amount;
+
+        require(aas.usdcTokenAddress != address(0), "USDC token address not set");
+        IERC20 usdcToken = IERC20(aas.usdcTokenAddress);
+        usdcToken.safeTransfer(msg.sender, amount);
+
+        tokenStorage.lastKnownUSDCBalance = usdcToken.balanceOf(address(this));
+        emit PendingAdminUSDCWithdrawn(msg.sender, amount);
+    }
+
+    /**
+     * @dev Returns the USDC commission escrowed for `account` (0 if none).
+     */
+    function getPendingAdminUSDC(address account) external view returns (uint256) {
+        return LibOpenAdvertsTokenStorage.tokenStorage().pendingAdminUSDC[account];
     }
 
     /**

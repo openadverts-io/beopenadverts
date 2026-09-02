@@ -120,7 +120,8 @@ describe("Pause & Deprecation Synchronization Tests", function () {
         advertPOLFactoryFacet = await ethers.getContractAt("OpenAdvertsAdvertPOLFactoryFacet", deployedAddresses.diamond)
         advertUSDCFactoryFacet = await ethers.getContractAt("OpenAdvertsAdvertUSDCFactoryFacet", deployedAddresses.diamond)
         advertisersFacet = await ethers.getContractAt("OpenAdvertsAdvertisersFacet", deployedAddresses.diamond)
-        governanceFacet = await ethers.getContractAt("OpenAdvertsGovernanceFacet", deployedAddresses.diamond)
+        // Read-only governance views were split into OpenAdvertsGovernanceHelperFacet; this handle targets it.
+        governanceFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", deployedAddresses.diamond)
         tokenFacet = await ethers.getContractAt("OpenAdvertsTokenFacet", deployedAddresses.diamond)
         votingFacet = await ethers.getContractAt("OpenAdvertsAdvertisersVotingFacet", deployedAddresses.diamond)
         affiliatesFacet = await ethers.getContractAt("OpenAdvertsAffiliatesFacet", deployedAddresses.diamond)

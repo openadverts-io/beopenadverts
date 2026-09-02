@@ -5,6 +5,11 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {LibOpenAdvertsTokenStorage} from "../libraries/LibOpenAdvertsTokenStorage.sol";
 
+interface IOpenAdvertsRequestKeyOps {
+    function validateRequestKeyOnlyDiamond(address newKey, address prospectiveOwner) external view;
+    function rotateRequestKeyOnlyDiamond(address newKey, address changedBy) external;
+}
+
 contract OwnershipFacet is IERC173 {
     // Immutable diamond address for direct calls
     address internal immutable diamondAddressForDirectCalls;
@@ -13,9 +18,20 @@ contract OwnershipFacet is IERC173 {
         diamondAddressForDirectCalls = _diamondAddress;
     }
 
-    function transferOwnership(address _newOwner) external override {
+    // Disabled: ownership can never move without atomically rotating the requestKey.
+    function transferOwnership(address) external pure override {
+        revert("Use transferOwnership(address,address)");
+    }
+
+    // Atomically hand over ownership and rotate the requestKey so an ex-owner's request
+    // credential for the external signing service dies with the transfer. Validation/rotation
+    // live in OpenAdvertsRequestKeyFacet, reached here via intra-diamond self-call.
+    function transferOwnership(address _newOwner, address _newRequestKey) external {
         LibDiamond.enforceIsContractOwner();
+        require(_newOwner != address(0), "New owner cannot be zero address");
+        IOpenAdvertsRequestKeyOps(address(this)).validateRequestKeyOnlyDiamond(_newRequestKey, _newOwner);
         LibDiamond.setContractOwner(_newOwner);
+        IOpenAdvertsRequestKeyOps(address(this)).rotateRequestKeyOnlyDiamond(_newRequestKey, msg.sender);
     }
 
     function owner() external view override returns (address owner_) {
@@ -29,7 +45,7 @@ contract OwnershipFacet is IERC173 {
     receive() external payable {
         if (msg.value > 0) {
             require(diamondAddressForDirectCalls != address(0), "Diamond address not set");
-            
+
             (bool success, ) = diamondAddressForDirectCalls.call{value: msg.value}("");
             require(success, "Transfer to diamond address failed");
         }

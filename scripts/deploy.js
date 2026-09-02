@@ -224,6 +224,7 @@ async function deployDiamond () {
     'OpenAdvertsAffiliatesFacet',
     'OpenAdvertsAffiliatesVotingFacet',
     'OpenAdvertsGovernanceFacet',
+    'OpenAdvertsGovernanceHelperFacet',        // ✅ Read-only governance query/history views (split from Governance for 24KB)
     'OpenAdvertsClaimGasFloorFacet',           // ✅ Owner-set claim-gas floor assumptions (split from Governance for 24KB)
     'OpenAdvertsPayoutFacet',
     'OpenAdvertsTokenFacet',
@@ -235,7 +236,8 @@ async function deployDiamond () {
     'OpenAdvertsQueryV2Facet',                 // ✅ Performance-optimized query facet
     'OpenAdvertsTimelockFacet',                // ✅ Phase 3: owner-authority timelock
     'OpenAdvertsPauseFacet',                   // ✅ Phase 4: system-wide emergency pause
-    'OpenAdvertsSignatureGateFacet'            // ✅ Website-origin signature gate on prospect creation
+    'OpenAdvertsSignatureGateFacet',           // ✅ Website-origin signature gate on prospect creation
+    'OpenAdvertsRequestKeyFacet'               // ✅ Owner-rotated requestKey for the external KMS signing service
   ]
   
   const cut = []
@@ -348,6 +350,30 @@ async function deployDiamond () {
   const confirmedSigner = await openAdvertsPayoutFacet.getOpenAdvertsSigningAddress();
   console.log('✅ OpenAdverts signing address set:', confirmedSigner);
 
+  // Initialize OpenAdverts requestKey (auth identity for the external KMS signing service).
+  // Published on-chain only; rotates with ownership. Must differ from the signing address
+  // and the owner, and be nonzero (enforced on-chain in setRequestKey).
+  console.log('\n=== 🔑 INITIALIZING OPENADVERTS REQUEST KEY ===');
+  const requestKeyFacet = await ethers.getContractAt('OpenAdvertsRequestKeyFacet', diamondAddress);
+  let openAdvertsRequestKey = process.env.OPENADVERTS_REQUEST_KEY_ADDRESS;
+  if (!openAdvertsRequestKey) {
+    if (network.name === "hardhat" || network.name === "localhost") {
+      // Local-only dummy, distinct from the dummy signing address above. Tests that need a
+      // specific requestKey rotate it via setRequestKey(...)/transferOwnership(...) in fixtures.
+      openAdvertsRequestKey = '0x000000000000000000000000000000000000bEEF';
+      console.log('⚠️  OPENADVERTS_REQUEST_KEY_ADDRESS not set — using local dummy requestKey:', openAdvertsRequestKey);
+    } else {
+      throw new Error('OPENADVERTS_REQUEST_KEY_ADDRESS not set in .env');
+    }
+  }
+  if (openAdvertsRequestKey.toLowerCase() === openAdvertsSigningAddress.toLowerCase()) {
+    throw new Error('OPENADVERTS_REQUEST_KEY_ADDRESS must differ from OPENADVERTS_SIGNING_ADDRESS');
+  }
+  const setRequestKeyTx = await requestKeyFacet.setRequestKey(openAdvertsRequestKey);
+  await setRequestKeyTx.wait();
+  const confirmedRequestKey = await requestKeyFacet.getRequestKey();
+  console.log('✅ OpenAdverts requestKey set:', confirmedRequestKey);
+
   // Set Storage Provider address on live networks. If left at address(0) the SP
   // commission share redirects to the OAD holder pool, so mainnet requires a real address.
   if (network.name !== "hardhat" && network.name !== "localhost") {
@@ -432,6 +458,8 @@ async function deployDiamond () {
       usdc: usdcAddress,
       priceFeed: priceFeedAddress,
       multicall3: multicall3Address,
+      signingAddress: confirmedSigner,
+      requestKey: confirmedRequestKey,
       facets: {}
     }
   };
@@ -490,9 +518,11 @@ async function verifyDeployment({
     return;
   }
 
-  const apiKey = process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY;
+  // Must mirror hardhat.config.cjs `etherscan.apiKey` (also ETHERSCAN_API_KEY), or this guard could
+  // pass while the verify plugin authenticates with an empty key.
+  const apiKey = process.env.ETHERSCAN_API_KEY;
   if (!apiKey) {
-    console.log("\n⚠️  No explorer API key found (ETHERSCAN_API_KEY/POLYGONSCAN_API_KEY). Skipping verification.");
+    console.log("\n⚠️  No explorer API key found (ETHERSCAN_API_KEY). Skipping verification.");
     return;
   }
 

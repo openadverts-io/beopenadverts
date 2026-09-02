@@ -155,6 +155,10 @@ library LibOpenAdvertsGovernanceStorage {
         // No default: must be set at deploy time, else quota proposal creation reverts.
         uint256 assumedGasPerSig;
         uint256 assumedClaimGasPriceWei;
+        // Per-(candidate, adminVoteId) requestKey supplied at application time. Activated as the
+        // live requestKey only if the candidate wins ratifyNewAdmin. The auto-added incumbent
+        // inherits the current live requestKey.
+        mapping(address => mapping(uint256 => address)) adminApplicantRequestKey;
     }
 
     function governanceStorage() internal pure returns (GovernanceStorage storage gs) {

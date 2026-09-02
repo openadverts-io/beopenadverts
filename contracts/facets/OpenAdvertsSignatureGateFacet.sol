@@ -48,6 +48,12 @@ contract OpenAdvertsSignatureGateFacet {
 
         address signer = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage().openAdvertsSigningAddress;
         require(signer != address(0), "Signing key not set");
+        // Secondary-signer cutover: the gate carries no signed engagement block, so route by the
+        // execution block — at/after the cutover the secondary signer is authoritative.
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage pas = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        if (pas.secondarySigningEnabled && block.number >= pas.secondarySigningCutoverBlock) {
+            signer = pas.secondarySigningAddress;
+        }
 
         bytes32 messageHash = keccak256(abi.encodePacked(actionTag, block.chainid, address(this), caller, uid, deadline));
         require(messageHash.toEthSignedMessageHash().recover(signature) == signer, "Invalid signature");

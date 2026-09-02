@@ -64,6 +64,10 @@ contract OpenAdvertsAdvertUSDCFactoryFacet {
         address advertiser = msg.sender;
 
         // Gate: require a valid, unused, website-issued signature bound to this caller.
+        // Replay/atomicity: verifyAndConsume marks usedUID[uid]=true (reverts "UID already used"
+        // on any reuse) in THIS same transaction, before deployment. Because the UID consumption
+        // and the contract creation share one atomic tx, a single signature can mint at most one
+        // advert contract — any revert downstream also rolls back the UID spend.
         IOpenAdvertsSignatureGateFacet(address(this)).verifyAndConsume(USDC_ADVERT_CREATE, uid, deadline, signature, advertiser);
 
         _validateDesignatedAffiliate(designatedAffiliate);

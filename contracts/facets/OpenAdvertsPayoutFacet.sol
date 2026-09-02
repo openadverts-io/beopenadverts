@@ -102,6 +102,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
     // CENTRALISED SIGNING ADDRESS
     // ============================================
 
+    event SigningAddressUpdated(address indexed previousSigner, address indexed newSigner, address indexed changedBy);
+
     /**
      * @notice Set the protocol-level signing address used to verify all reward signatures.
      * @dev Phase 3: dual-auth. Pre-enforcement, owner-direct. Post-enforcement, must be
@@ -111,7 +113,10 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
     function setOpenAdvertsSigningAddress(address newSigner) external {
         _enforceOwnerOrTimelockExec();
         require(newSigner != address(0), "Zero address");
-        LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage().openAdvertsSigningAddress = newSigner;
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStorage = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        address previousSigner = payoutStorage.openAdvertsSigningAddress;
+        payoutStorage.openAdvertsSigningAddress = newSigner;
+        emit SigningAddressUpdated(previousSigner, newSigner, msg.sender);
     }
 
     /**
@@ -119,6 +124,70 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
      */
     function getOpenAdvertsSigningAddress() external view returns (address) {
         return LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage().openAdvertsSigningAddress;
+    }
+
+    // ============================================
+    // SECONDARY SIGNER CUTOVER (owner-immediate)
+    // ============================================
+
+    event SecondarySigningActivated(address indexed secondary, uint256 cutoverBlock, address indexed changedBy);
+    event SecondarySigningDeactivated(address indexed changedBy);
+
+    /**
+     * @notice Owner-immediate: activate a secondary signer with a block cutover. Thereafter a
+     *         reward/gate signature whose reference block is >= cutoverBlock must recover to the
+     *         secondary signer; earlier blocks still require the primary. cutoverBlock MAY be in the
+     *         past — that is how a retired/compromised primary is neutralised for everything onward.
+     */
+    function activateSecondarySigning(address secondary, uint256 cutoverBlock) external {
+        LibDiamond.enforceIsContractOwner();
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStore = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        require(secondary != address(0), "Zero address");
+        require(secondary != payoutStore.openAdvertsSigningAddress, "Secondary == primary");
+        require(cutoverBlock != 0, "Cutover not set");
+        payoutStore.secondarySigningAddress = secondary;
+        payoutStore.secondarySigningCutoverBlock = cutoverBlock;
+        payoutStore.secondarySigningEnabled = true;
+        emit SecondarySigningActivated(secondary, cutoverBlock, msg.sender);
+    }
+
+    /**
+     * @notice Owner-immediate: disable the secondary signer and clear its address + cutover.
+     */
+    function deactivateSecondarySigning() external {
+        LibDiamond.enforceIsContractOwner();
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStore = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        payoutStore.secondarySigningEnabled = false;
+        payoutStore.secondarySigningAddress = address(0);
+        payoutStore.secondarySigningCutoverBlock = 0;
+        emit SecondarySigningDeactivated(msg.sender);
+    }
+
+    /**
+     * @notice Owner-immediate: atomically promote the secondary signer to primary and clear the
+     *         secondary state. Use after the public redemption window to finalise a key cutover
+     *         without the deactivate/rotate ordering footgun (and without the setOpenAdvertsSigningAddress timelock).
+     */
+    function promoteSecondaryToPrimary() external {
+        LibDiamond.enforceIsContractOwner();
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStore = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        address secondary = payoutStore.secondarySigningAddress;
+        require(secondary != address(0), "No secondary set");
+        address previousSigner = payoutStore.openAdvertsSigningAddress;
+        payoutStore.openAdvertsSigningAddress = secondary;
+        payoutStore.secondarySigningEnabled = false;
+        payoutStore.secondarySigningAddress = address(0);
+        payoutStore.secondarySigningCutoverBlock = 0;
+        emit SigningAddressUpdated(previousSigner, secondary, msg.sender);
+        emit SecondarySigningDeactivated(msg.sender);
+    }
+
+    /**
+     * @notice Returns the secondary-signer cutover state.
+     */
+    function getSecondarySigningInfo() external view returns (bool enabled, address secondary, uint256 cutoverBlock) {
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStore = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        return (payoutStore.secondarySigningEnabled, payoutStore.secondarySigningAddress, payoutStore.secondarySigningCutoverBlock);
     }
 
     /**
@@ -404,13 +473,12 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
         address[] memory uniqueAddrs = new address[](maxUniqueAddrs);
         uint256[] memory uniqueAmounts = new uint256[](maxUniqueAddrs);
 
-        // P0.2 — Per-(viewer, advertContract, affiliateReceivingAddress) cooldown check.
+        // P0.2 — Per-(viewer, advertContract) cooldown check.
         // The viewer cannot have a previously accepted engagement block within the
-        // current maxBlockSeparationAdvertisement window for the same
-        // (advertContract, affiliateReceivingAddress) tuple. Scoped at this granularity
-        // so that cashing one affiliate's signatures does not block another affiliate's
-        // claims for the same viewer. Cross-(viewer, advert, affiliate) Sybil attacks
-        // are mitigated off-chain by the signing service, not on-chain here.
+        // current maxBlockSeparationAdvertisement window for the same advertContract.
+        // The affiliate is implicit (one designated affiliate per advert), so it is not a
+        // separate cooldown key. Cross-(viewer, advert) Sybil attacks are mitigated
+        // off-chain by the signing service, not on-chain here.
         {
             // LibOpenAdvertsGovernanceStorage.GovernanceStorage storage govStore = LibOpenAdvertsGovernanceStorage.governanceStorage();
             uint256 lastEngagementBlock = payoutStore.viewerLastEngagementBlock[verifyData.viewerAddress][advertContractAddress];
@@ -645,18 +713,35 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
         require(signatures.length == thirdPartyAddrs.length, "Mismatched signatures and thirdPartyAddresses");
 
         // PROTOCOL SIGNING KEY CHECK: Verify the central signing address is configured.
+        // SECURITY: `openAdvertsSigningAddress` is the protocol's central authorization key. Its
+        // private half is a non-exportable key held in an identity-linked KMS/Vault (HSM-backed);
+        // it is NEVER present in application memory or committed to the repo. Only its public
+        // address is written on-chain via setOpenAdvertsSigningAddress (owner-gated). This
+        // recover-against-storage check is the anti-spoofing boundary: a forged signature cannot
+        // pass unless it was produced by the KMS-held key, and the trusted value is read here
+        // directly from Diamond storage (LibOpenAdvertsPayoutStorage), never from calldata.
         address advSigner = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage().openAdvertsSigningAddress;
         require(advSigner != address(0), "OpenAdverts signing key not set");
+        // Secondary-signer cutover: hoist reads ONCE (gas). Per-signature routing (below) is in-memory:
+        // a sig with blockNumber >= cutover must recover to the secondary; earlier blocks to the primary.
+        LibOpenAdvertsPayoutStorage.OpenAdvertsPayoutStruct storage payoutStore = LibOpenAdvertsPayoutStorage.openAdvertsPayoutStorage();
+        bool secondaryOn = payoutStore.secondarySigningEnabled;
+        address secondarySigner;
+        uint256 secondaryCutoverBlock;
+        if (secondaryOn) {
+            secondarySigner = payoutStore.secondarySigningAddress;
+            secondaryCutoverBlock = payoutStore.secondarySigningCutoverBlock;
+        }
 
         // In-memory seen-set for duplicate signature detection (P0.4).
-        // Bounded by signatures.length (max 200 per governance quota) — no SSTORE cost.
+        // Bounded by signatures.length (<= maxSignaturesPerBatch, governance ceiling 75) — no SSTORE cost.
         bytes32[] memory seenHashes = new bytes32[](signatures.length);
         uint256 seenCount = 0;
 
         // Within-batch ordering: track the last accepted engagement block to enforce
         // minBlockNRSeparation spacing between consecutive sigs in this batch (P0.1/P0.3).
         // Cross-transaction cooldown is enforced separately in claimReward() via
-        // viewerLastEngagementBlock[viewer][advertContract][affiliateReceivingAddress] in PayoutStorage.
+        // viewerLastEngagementBlock[viewer][advertContract] in PayoutStorage.
         uint256 lastProcessedBlockNumber = 0;
 
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -699,10 +784,11 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
             // Recover the signer's address from the provided signature.
             address recoveredSigner = ECDSA.recover(ethMsgHash, signatures[i]);
 
-            // If the recovered signer matches the OpenAdverts protocol signing address, apply
-            // within-batch block separation (P0.1: minBlockNRSeparation is already in
-            // blocks — no division by polBlocksPerHour required).
-            if (recoveredSigner == advSigner) {
+            // Route to the secondary signer for engagement blocks at/after the cutover, else the
+            // primary (always the primary when the secondary is disabled). Then apply within-batch
+            // block separation (P0.1: minBlockNRSeparation is already in blocks).
+            address expectedSigner = (secondaryOn && blockNumbers[i] >= secondaryCutoverBlock) ? secondarySigner : advSigner;
+            if (recoveredSigner == expectedSigner) {
                 if ((lastProcessedBlockNumber + advertInfo.minBlockNRSeparation) < blockNumbers[i]) {
                     lastProcessedBlockNumber = blockNumbers[i];
                     validSigs[validSigCount] = thirdPartyAddrs[i];

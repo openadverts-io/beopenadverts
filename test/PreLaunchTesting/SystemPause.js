@@ -139,12 +139,12 @@ describe("Phase 4 — System-Wide Emergency Pause", function () {
         it("applyAsNewAdmin reverts when paused", async function () {
             await pauseFacet.connect(owner).pause("x");
             await expect(
-                governance.connect(alice).applyAsNewAdmin("a", { value: ethers.parseEther("500") })
+                governance.connect(alice).applyAsNewAdmin("a", ethers.Wallet.createRandom().address, { value: ethers.parseEther("500") })
             ).to.be.revertedWith("System paused");
         });
 
         it("voteForNewAdmin reverts when paused", async function () {
-            await governance.connect(alice).applyAsNewAdmin("a", { value: ethers.parseEther("500") });
+            await governance.connect(alice).applyAsNewAdmin("a", ethers.Wallet.createRandom().address, { value: ethers.parseEther("500") });
             await pauseFacet.connect(owner).pause("x");
             await expect(governance.connect(owner).voteForNewAdmin(alice.address))
                 .to.be.revertedWith("System paused");

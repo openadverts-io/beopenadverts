@@ -60,6 +60,11 @@ library LibOpenAdvertsTokenStorage {
         // deployment that never creates a governance proposal).
         uint256 currentSnapshotId;
         mapping(address => Snapshots) accountBalanceSnapshots;
+        // Admin-commission escrow: credited when ratifyNewAdmin's push to the outgoing
+        // admin fails (token pause/blacklist). Claimed later via withdrawPendingAdminUSDC,
+        // independent of current ownership. totalPendingAdminUSDC is the unclaimed sum.
+        mapping(address => uint256) pendingAdminUSDC;
+        uint256 totalPendingAdminUSDC;
     }
 
     function tokenStorage() internal pure returns (TokenStorage storage ts) {

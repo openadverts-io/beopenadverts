@@ -1001,7 +1001,8 @@ describe("OpenAdvertsAdvertPOL Contract Tests", function () {
                 const commissionContract = await ethers.getContractAt("OpenAdvertsAdvertPOL", commissionTestAddress);
                 
                 // Get commission rates from governance
-                const [platformCommission, adminCommissionFromADVC] = await governanceFacet.getPlatformAndAdminCommissions();
+                const governanceHelperFacet = await ethers.getContractAt("OpenAdvertsGovernanceHelperFacet", governanceFacet.target);
+                const [platformCommission, adminCommissionFromADVC] = await governanceHelperFacet.getPlatformAndAdminCommissions();
                 console.log(`­ƒôè Platform commission: ${platformCommission}%, Admin commission from ADVC: ${adminCommissionFromADVC}%`);
                 
                 // Get Diamond contract owner (should be 'owner' from signers)
