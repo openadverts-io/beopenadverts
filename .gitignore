@@ -18,3 +18,9 @@ test/GasBenchmark/eventGasCost.json
 # Internal-only docs (agent briefs, FE/backend integration notes, full project docs).
 # Kept locally, never published to the public repo.
 internal/
+
+# AI / engineering-standards working doc — kept local, not published
+/CLAUDE.MD
+
+# VS Code workspace file — local editor config, not published
+/beopenadverts.code-workspace
