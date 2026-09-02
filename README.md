@@ -15,7 +15,7 @@ OpenAdverts (OAD) is an on-chain advertising-rewards protocol built on the [EIP-
 | `Diamond`                                                                                                     | Proxy: `fallback` delegatecalls facets; constructor registers `diamondCut` |
 | `DiamondCutFacet`                                                                                             | Add/replace/remove selectors (owner, bootstrap-gated)                      |
 | `DiamondLoupeFacet`                                                                                           | EIP-2535 introspection                                                     |
-| `OwnershipFacet`                                                                                              | ERC-173 ownership                                                          |
+| `OwnershipFacet`                                                                                              | ERC-173 ownership + `requestKey` rotation                                  |
 | `OpenAdvertsTokenFacet`                                                                                       | OAD token, POL/USDC dividend accrual, `finalizeBootstrap`                  |
 | `OpenAdvertsAdvertisersFacet` / `OpenAdvertsAdvertisersVotingFacet`                                           | Advertiser & campaign registry; community approval/denial voting           |
 | `OpenAdvertsAffiliatesFacet` / `OpenAdvertsAffiliatesVotingFacet`                                             | Affiliate (publisher) registry; approval/denial voting                     |
@@ -46,7 +46,8 @@ USDC campaign minimums are computed as the POL-equivalent (via the Chainlink fee
 - **Quorum is measured on SUPPORT (FOR) votes only.** A proposal passes when support exceeds the quorum threshold _and_ outnumbers the deny votes, so a deny vote can never push a proposal over quorum.
 - **`ratifyUpgrade()` is permissionless** after the voting deadline and never reverts on quorum/support: it applies a passed proposal or clears a failed one, so the single-proposal queue can never brick.
 - **`revokeProposal()`** is owner-only and restricted to the voting window; once voting ends, the outcome belongs to the token holders.
-- **Admin election.** `applyAsNewAdmin` → token-holder vote → `ratifyNewAdmin`, with a permissionless `clearFailedElection` when no candidate meets quorum, so ownership transfer cannot get stuck.
+- **Admin election.** `applyAsNewAdmin` (each candidate supplies the `requestKey` they will use if elected) → token-holder vote → `ratifyNewAdmin`, with a permissionless `clearFailedElection` when no candidate meets quorum, so ownership transfer cannot get stuck.
+- **Ownership + `requestKey` are coupled.** Ownership can never move without also rotating the `requestKey`: the ERC-173 `transferOwnership(address)` reverts, and `transferOwnership(address,address)` sets the new owner and new requestKey atomically (governance ratification does the same for the winning candidate). The current owner can also rotate it immediately via `setRequestKey`.
 
 ## Upgrade & bootstrap model
 
@@ -55,12 +56,13 @@ Two upgrade paths exist:
 1. **Owner-direct `diamondCut`** — available only during the _bootstrap window_. A one-way latch (`OpenAdvertsTokenFacet.finalizeBootstrap()`) permanently closes it; `scripts/deploy.js` calls this at the end of a live-network deploy. After finalization, the owner path of `DiamondCutFacet.diamondCut` reverts.
 2. **Governance `FacetProposal`** — created by the owner, voted on by token holders (FOR-only quorum), then resolved by the **permissionless** `ratifyUpgrade()` after the voting deadline. Ratification performs the cut through `DiamondCutFacet` authorized by a transient in-progress flag that only `ratifyUpgrade` sets, so the bootstrap latch does not block governance-approved upgrades.
 
-The bootstrap latch gates **only** `diamondCut`. Owner configuration setters (signing address, storage provider, claim-gas floor) remain callable after finalization.
+The bootstrap latch gates **only** `diamondCut`. Owner configuration setters (signing address, requestKey, storage provider, claim-gas floor) remain callable after finalization.
 
 ## Security
 
 - Secrets live only in gitignored `.env*` files; the mainnet key is shell-injected for a single command, never committed.
 - Prospect-creation entrypoints are gated by website-origin signatures with one-time UIDs and deadlines (replay-protected).
+- The `requestKey` is a published, owner-rotated address used off-chain to authenticate signing-service requests; it rotates atomically on every ownership change so a departed owner immediately loses request access. It is publish-only on-chain (never `ecrecover`'d) and must differ from the signing address.
 - Reentrancy guards on transfer/reward paths; flash-loan protection on all voting via balance snapshots plus same/adjacent-block activity checks.
 - A system-wide pause can halt inbound-value and governance-takeover paths; withdrawals and refunds remain always-on by design.
 - Sensitive owner configuration changes (oracle feed, signing key, oracle bounds, staleness windows) can be routed through `OpenAdvertsTimelockFacet`.
@@ -121,7 +123,7 @@ Verify (no owner key required):
 $env:ENV_FILE = ".env.prod"; npx hardhat run scripts/verify.js --network polygon
 ```
 
-The deployer receives the full OAD supply at genesis and is the initial Diamond owner. On live networks the deploy finalizes the bootstrap latch, so post-deploy facet upgrades go through governance. The script also initializes the claim-gas floor, the protocol signing address, and (on Polygon) the storage-provider address.
+The deployer receives the full OAD supply at genesis and is the initial Diamond owner. On live networks the deploy finalizes the bootstrap latch, so post-deploy facet upgrades go through governance. The script also initializes the claim-gas floor, the protocol signing address, the `requestKey` (env `OPENADVERTS_REQUEST_KEY_ADDRESS`, required on prod and distinct from the signing address), and (on Polygon) the storage-provider address.
 
 ## Repository structure
 
