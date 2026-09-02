@@ -18,14 +18,8 @@ library LibOpenAdvertsPayoutStorage {
         address affiliateReceivingAddress;
         address affiliateClaimInfoAddress;
         address advertismentContractAddress;
-        // string passPhrase;
         uint256 nonce;
         address viewerAddress; // Set by advert contract to msg.sender before cross-contract call
-    }
-
-    struct UniqueAddressInfo {
-        address addr;
-        uint256 amount;
     }
 
     struct AffiliatePauseInfo {
@@ -45,7 +39,6 @@ library LibOpenAdvertsPayoutStorage {
         ThirdPartyAddressStruct ThirdPartyAddressStruct;
         ClaimPercentagesStruct ClaimPercentagesStruct;
         VerificationDataStruct VerificationDataStruct;
-        UniqueAddressInfo UniqueAddressInfo;
         address storageProviderAddress;
         // Emergency pause mechanism
         bool isPayoutsPaused;

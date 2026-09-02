@@ -6,21 +6,6 @@ import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 library LibOpenAdvertsTokenStorage {
     bytes32 constant STORAGE_POSITION = keccak256("openadverts.token.storage");
 
-    // enum VotingBenchmarks {
-    //     CustomThreshold,
-    //     MajorityThreshold,
-    //     SuperMajorityThreshold
-    // }
-
-    // struct FacetProposal {
-    //     VotingBenchmarks votingBenchmarks;
-    //     address targetContract;
-    // }
-
-    // struct QuotaProposal {
-    //     VotingBenchmarks votingBenchmarks;
-    // }
-
     enum ProposalType {
         QuotaProposal, // Represents a quota proposal
         FacetProposal, // Represents a facet proposal
