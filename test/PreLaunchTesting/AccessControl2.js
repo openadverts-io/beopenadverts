@@ -918,7 +918,8 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                         mockThirdParty,
                         mockAdvertInfo,
                         ethers.parseEther("10"),
-                        mockAdvertInfo.advertContractAddress
+                        mockAdvertInfo.advertContractAddress,
+                        0
                     )
                 ).to.be.revertedWith("Only registered advertisement contracts can claim rewards");
             });
@@ -960,7 +961,8 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                         emptyThirdParty,
                         mockAdvertInfo,
                         ethers.parseEther("10"),
-                        owner.address
+                        owner.address,
+                        0
                     )
                 ).to.be.revertedWith("No signatures provided");
             });
@@ -1004,7 +1006,8 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                         mockThirdParty,
                         mockAdvertInfo,
                         0, // Zero budget
-                        owner.address
+                        owner.address,
+                        0
                     )
                 ).to.be.revertedWith("No budget available");
             });
@@ -1048,7 +1051,8 @@ describe("🔒 Access Control Tests - Affiliate & Governance Facets", function (
                         mockThirdParty,
                         mockAdvertInfo,
                         ethers.parseEther("10"),
-                        ethers.ZeroAddress // Invalid address
+                        ethers.ZeroAddress, // Invalid address
+                        0
                     )
                 ).to.be.revertedWith("Invalid advertisement contract");
             });

@@ -374,6 +374,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
      * @param advertInfo Advert details including bounty and minimum block separation.
      * @param remainingBudget The remaining budget available for rewards.
      * @param advertContractAddress The address of the advertisement contract holding USDC.
+     * @param advertApprovedBlock The block at which the advert was approved+commissioned; reward
+     *        signatures referencing an earlier block are rejected.
 
      * @return payoutData Returns payout data for POL payments, empty for USDC payments.
      */
@@ -384,7 +386,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
         LibOpenAdvertsPayoutStorage.ThirdPartyAddressStruct[] memory thirdPartyAddrs,
         LibOpenAdvertsAdvertisersStorage.AdvertStruct memory advertInfo,
         uint256 remainingBudget,
-        address advertContractAddress
+        address advertContractAddress,
+        uint256 advertApprovedBlock
     ) external nonReentrant returns (LibOpenAdvertsPayoutStorage.PayoutData memory payoutData) {
         // Phase 4 — system-wide emergency pause check (separate from payouts-only pause below).
         require(!LibOpenAdvertsPauseStorage.openAdvertsPauseStorage().paused, "System paused");
@@ -508,7 +511,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
             thirdPartyCount,
             advertInfo,
             validSigs,
-            maxAffordableSigs
+            maxAffordableSigs,
+            advertApprovedBlock
         );
 
         // If no valid signatures, skip processing — budget was fine, signatures were invalid.
@@ -697,6 +701,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
      * @param thirdPartyAddrs Array of third party addresses for each signature.
      * @param thirdPartyCount Number of third parties declared by the provider (included in hash).
      * @param advertInfo Contains advert details including the bounty.
+     * @param advertApprovedBlock Advert approval block; the first accepted signature's block number
+     *        must be >= this value (later accepted blocks are guaranteed by within-batch spacing).
      */
     function _verifySignatures(
         bytes[] memory signatures,
@@ -706,7 +712,8 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
         uint256 thirdPartyCount,
         LibOpenAdvertsAdvertisersStorage.AdvertStruct memory advertInfo,
         LibOpenAdvertsPayoutStorage.ThirdPartyAddressStruct[] memory validSigs,
-        uint256 maxValidSigs
+        uint256 maxValidSigs,
+        uint256 advertApprovedBlock
     ) internal view returns (uint256 validSigCount, uint256 maxValidBlockNumber) {
         validSigCount = 0;
         require(signatures.length == blockNumbers.length, "Mismatched signatures and blockNumbers");
@@ -790,6 +797,13 @@ contract OpenAdvertsPayoutFacet is ReentrancyGuard {
             address expectedSigner = (secondaryOn && blockNumbers[i] >= secondaryCutoverBlock) ? secondarySigner : advSigner;
             if (recoveredSigner == expectedSigner) {
                 if ((lastProcessedBlockNumber + advertInfo.minBlockNRSeparation) < blockNumbers[i]) {
+                    // First accepted signature establishes the batch's lowest engagement block.
+                    // Enforce it is at/after the advert's approval block; the monotonic within-batch
+                    // spacing above then guarantees every later accepted block is also >=
+                    // advertApprovedBlock, so this bound is checked once (first accepted sig only).
+                    if (lastProcessedBlockNumber == 0) {
+                        require(blockNumbers[i] >= advertApprovedBlock, "Block number before advert approval");
+                    }
                     lastProcessedBlockNumber = blockNumbers[i];
                     validSigs[validSigCount] = thirdPartyAddrs[i];
                     ++validSigCount;

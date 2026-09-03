@@ -254,6 +254,71 @@ describe('POLContract: processReward Functionality Tests', function () {
     expect(storedVariables.rspInitialFundedBudget).to.equal(fundingAmount)
   })
 
+  it('R-APPROVAL: rejects a reward whose block number precedes the advert approval block', async function () {
+    const fixture = await loadFixture(deployTestFixture)
+    const { user, signingAddress } = fixture
+    const { polAdvertAddress, polContract, designatedAffiliateAddress } = await setupApprovedAdvertisement(fixture)
+
+    // Set in processCommission() during the approval vote; must exceed minBlockSeparation(1)
+    // so a block just below it still reaches the on-chain approval-block check.
+    const approvedBlock = await polContract.approvedBlock()
+    expect(approvedBlock).to.be.greaterThan(1n)
+
+    const tp = { thirdPartyAddresses: [
+      '0x00000000000000000000000000000000000000A1',
+      '0x00000000000000000000000000000000000000A2',
+      '0x00000000000000000000000000000000000000A3'
+    ] }
+
+    const currentNonce = await polContract.connect(user).getUserNonceOfAffiliate(designatedAffiliateAddress)
+    const verificationData = {
+      affiliateReceivingAddress: designatedAffiliateAddress,
+      affiliateClaimInfoAddress: designatedAffiliateAddress,
+      affiliateSigningAddress: signingAddress.address,
+      advertismentContractAddress: polAdvertAddress,
+      nonce: Number(currentNonce),
+      viewerAddress: user.address
+    }
+
+    const preApprovalBlock = approvedBlock - 1n
+    const sig = await createSignature(signingAddress, preApprovalBlock, verificationData, polAdvertAddress, user.address, tp)
+
+    await expect(
+      polContract.connect(user).processReward([sig], [preApprovalBlock], verificationData, [tp])
+    ).to.be.revertedWith('Block number before advert approval')
+  })
+
+  it('R-APPROVAL: accepts a reward whose block number equals the advert approval block (inclusive lower bound)', async function () {
+    const fixture = await loadFixture(deployTestFixture)
+    const { user, signingAddress } = fixture
+    const { polAdvertAddress, polContract, designatedAffiliateAddress } = await setupApprovedAdvertisement(fixture)
+
+    const approvedBlock = await polContract.approvedBlock()
+
+    const tp = { thirdPartyAddresses: [
+      '0x00000000000000000000000000000000000000B1',
+      '0x00000000000000000000000000000000000000B2',
+      '0x00000000000000000000000000000000000000B3'
+    ] }
+
+    const currentNonce = await polContract.connect(user).getUserNonceOfAffiliate(designatedAffiliateAddress)
+    const verificationData = {
+      affiliateReceivingAddress: designatedAffiliateAddress,
+      affiliateClaimInfoAddress: designatedAffiliateAddress,
+      affiliateSigningAddress: signingAddress.address,
+      advertismentContractAddress: polAdvertAddress,
+      nonce: Number(currentNonce),
+      viewerAddress: user.address
+    }
+
+    const sig = await createSignature(signingAddress, approvedBlock, verificationData, polAdvertAddress, user.address, tp)
+
+    const affBefore = await ethers.provider.getBalance(designatedAffiliateAddress)
+    await polContract.connect(user).processReward([sig], [approvedBlock], verificationData, [tp])
+    const affAfter = await ethers.provider.getBalance(designatedAffiliateAddress)
+    expect(affAfter).to.be.greaterThan(affBefore)
+  })
+
   it('R-SEC: ignores caller-supplied affiliateClaimInfoAddress and uses the affiliate-registered provider (claim-info substitution fix)', async function () {
     const fixture = await loadFixture(deployTestFixture)
     const { user, signingAddress } = fixture

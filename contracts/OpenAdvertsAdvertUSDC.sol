@@ -20,7 +20,8 @@ interface IOpenAdvertsPayoutFacet {
         LibOpenAdvertsPayoutStorage.ThirdPartyAddressStruct[] memory thirdPartyAddresses,
         LibOpenAdvertsAdvertisersStorage.AdvertStruct memory newAdvertContractRef,
         uint256 remainingBudget,
-        address advertContractAddress
+        address advertContractAddress,
+        uint256 advertApprovedBlock
     ) external payable returns (LibOpenAdvertsPayoutStorage.PayoutData memory payoutData);
 
     function getStorageProviderAddress() external view returns (address);
@@ -203,6 +204,11 @@ contract OpenAdvertsAdvertUSDC is ReentrancyGuard {
 
     bool private commissionProcessedLocal;
 
+    // Block at which this advert was approved + commissioned. Set once in processCommission()
+    // (which runs in the approval tx and is gated on Approved status) and passed to the Diamond
+    // as the lower bound below which reward block numbers are rejected.
+    uint256 public approvedBlock;
+
     /**
      * @notice Constructor sets up the advertisement contract with USDC support.
      * @param newAdvertContractRef Reference to the advertisement details.
@@ -289,7 +295,8 @@ contract OpenAdvertsAdvertUSDC is ReentrancyGuard {
             filteredThirdPartyAddresses,
             advertInfo,
             currentUSDCBalance,
-            address(this)
+            address(this),
+            approvedBlock
         );
 
         PayoutBreakdown memory breakdown = _calculatePayoutBreakdown(
@@ -334,6 +341,8 @@ contract OpenAdvertsAdvertUSDC is ReentrancyGuard {
         require(currentStatus == LibOpenAdvertsAdvertisersStorage.AdvertisementType.Approved, "Advertisement must be Approved to process commission");
 
         commissionProcessedLocal = true;
+        // Approval block: reward signatures for blocks before this are rejected on-chain.
+        approvedBlock = block.number;
 
         // fetch platform commission percentage from governance
         (uint256 platformCommission, ) = IOpenAdvertsGovernanceFacet(diamond).getPlatformAndAdminCommissions();

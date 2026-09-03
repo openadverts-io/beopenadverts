@@ -23,13 +23,13 @@
 </style></head><body>
 
 <h1>OpenAdverts — Minimum <code>advertBounty</code> Guidance</h1>
-<p class="meta">Generated 2026-09-02T12:15:58.322Z · POL advert · 20-sig batch · viewer 70% · 3-TP unique · gas/sig 90.296 (amortised over 20 sigs)</p>
+<p class="meta">Generated 2026-09-02T14:24:15.747Z · POL advert · 20-sig batch · viewer 70% · 3-TP unique · gas/sig 90.297 (amortised over 20 sigs)</p>
 
 <div class="box">
   <strong>Model &amp; scope.</strong>
   <ul>
     <li>Both the payout and the gas are in <strong>POL</strong>, so the viewer's gas-breakeven <code>advertBounty</code> is <strong>invariant to the POL/USD price</strong> — price only scales the magnitude. USD price matters <em>only</em> when comparing the advertiser's cost to Google (a USD benchmark).</li>
-    <li>Costs are amortised over a <strong>20-signature batch</strong> (never a single signature). The viewer pays <strong>1.805.920 gas once</strong> for 20 engagements; 90.296 is the per-engagement share.</li>
+    <li>Costs are amortised over a <strong>20-signature batch</strong> (never a single signature). The viewer pays <strong>1.805.940 gas once</strong> for 20 engagements; 90.297 is the per-engagement share.</li>
     <li>Viewer receives <strong>70%</strong> of the bounty; all third-party addresses unique (worst-case gas path). Gas is split-ratio-invariant (same recipients at 50% or 70%).</li>
     <li>Google benchmarks are editable constants in the script — currently CPV <code>$0.010000</code>/view, CPC <code>$0.100000</code>/click, CPM <code>$0.000500</code>/impression.</li>
   </ul>
@@ -39,7 +39,7 @@
 <p>The floor: below this the viewer's 70% share does not even repay the gas they spend to claim. POL column is the real constraint (price-invariant); USD columns are for context.</p>
 <table>
   <thead><tr><th>gas price</th><th>min advertBounty (POL)</th><th>= USD @ $0.08</th><th>= USD @ $0.25</th></tr></thead>
-  <tbody><tr><td class="label">30 gwei</td><td>0.003870</td><td>$0.000310</td><td>$0.000967</td></tr><tr><td class="label">100 gwei</td><td>0.012899</td><td>$0.001032</td><td>$0.003225</td></tr><tr><td class="label">200 gwei</td><td>0.025799</td><td>$0.002064</td><td>$0.006450</td></tr><tr><td class="label">500 gwei</td><td>0.064497</td><td>$0.005160</td><td>$0.016124</td></tr></tbody>
+  <tbody><tr><td class="label">30 gwei</td><td>0.003870</td><td>$0.000310</td><td>$0.000967</td></tr><tr><td class="label">100 gwei</td><td>0.012900</td><td>$0.001032</td><td>$0.003225</td></tr><tr><td class="label">200 gwei</td><td>0.025799</td><td>$0.002064</td><td>$0.006450</td></tr><tr><td class="label">500 gwei</td><td>0.064498</td><td>$0.005160</td><td>$0.016124</td></tr></tbody>
 </table>
 
 <h2>2 · <code>advertBounty</code> to match Google's cheapest price</h2>
@@ -69,7 +69,7 @@
 <p>Set the floor by the gas price you want viewers to stay whole at. Positioning is vs Google at $0.25/POL.</p>
 <table>
   <thead><tr><th>resilience target</th><th>min bounty (POL)</th><th>= USD @ $0.08</th><th>= USD @ $0.25</th><th>vs Google</th></tr></thead>
-  <tbody><tr><td class="label">resilient to 100 gwei</td><td>0.012899</td><td>$0.001032</td><td>$0.003225</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 200 gwei</td><td>0.025799</td><td>$0.002064</td><td>$0.006450</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 500 gwei</td><td>0.064497</td><td>$0.005160</td><td>$0.016124</td><td>above CPV, below CPC</td></tr></tbody>
+  <tbody><tr><td class="label">resilient to 100 gwei</td><td>0.012900</td><td>$0.001032</td><td>$0.003225</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 200 gwei</td><td>0.025799</td><td>$0.002064</td><td>$0.006450</td><td>≤ YouTube CPV; far below CPC</td></tr><tr><td class="label">resilient to 500 gwei</td><td>0.064498</td><td>$0.005160</td><td>$0.016124</td><td>above CPV, below CPC</td></tr></tbody>
 </table>
 
 <h2>5 · Cheaper than Google even if the viewer runs a loss</h2>
