@@ -7,10 +7,15 @@ import {LibOpenAdvertsPayoutStorage} from "../libraries/LibOpenAdvertsPayoutStor
 
 /**
  * @title OpenAdvertsRequestKeyFacet
- * @notice Owns the protocol requestKey: the address the external KMS signing service authenticates
+ * @notice Owns the protocol requestKey: the address the off-chain signing service authenticates
  *         request callers against off-chain (via ECDSA recover). It is published on-chain only,
  *         never used in any on-chain ecrecover, and rotates atomically with ownership so a departed
  *         owner immediately loses request access.
+ * @dev TEE-only: the requestKey is consumed only by the future TEE/enclave (aegis) signing path,
+ *      which authenticates each sign-request via a requestKey-signed envelope. The current production
+ *      backend is KMS, which does NOT use it (KMS signs with a bearer IAM credential; no envelope
+ *      check), so today this on-chain key is published/rotated but inert - kept now so the eventual
+ *      TEE cutover needs no contract upgrade.
  * @dev Storage lives in LibOpenAdvertsRequestKeyStorage (accessor only). The two `...OnlyDiamond`
  *      helpers are reached by intra-diamond self-call from OwnershipFacet.transferOwnership and the
  *      OpenAdvertsGovernanceFacet admin-election flow, so their validation/rotation bytecode does not
