@@ -351,6 +351,12 @@ async function runScenario (fixture, sigCount, tpSets, scenario, scenarioDesc) {
     const reason = err.message || String(err)
     console.log(`\n   💥  Scenario ${scenario} REVERTED: ${reason.slice(0, 120)}`)
 
+    // Only a genuine gas-limit failure is a benchmark RESULT. Any other revert is a
+    // broken harness and must fail loudly — from 2026-09-03 to 2026-09-29 every
+    // scenario reverted with "Block number before advert approval" and was silently
+    // recorded as EXCEEDED_BLOCK_GAS_LIMIT.
+    if (!/out of gas|gas limit|exceeds block gas/i.test(reason)) throw err
+
     recordGas({
       scenario:    scenario,
       description: scenarioDesc,

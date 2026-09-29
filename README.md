@@ -4,7 +4,7 @@ OpenAdverts (OAD) is an on-chain advertising-rewards protocol built on the [EIP-
 
 - **Token:** OAD — fixed supply of 21,000,000, custom storage (not OZ-inherited), with POL/USDC dividend accrual for holders.
 - **Payments:** campaigns are funded in native POL or USDC; USDC minimums are derived from a Chainlink POL/USD feed plus a governance-set currency premium.
-- **Proof of engagement:** the backend signs viewer engagement; affiliates submit signature batches (up to 200) to `processReward`, which verifies each signature against the protocol signing key and splits every bounty between the viewer, the affiliate, and up to six third parties.
+- **Proof of engagement:** the backend signs viewer engagement; the viewer submits a signature batch (at most the governance quota `maxSignaturesPerBatch`: default 50, allowed range 1–75) to `processReward`, which verifies each signature against the protocol signing key and splits every bounty between the viewer, the affiliate, and up to six third parties.
 - **Governance:** token-weighted proposals (parameter/quota changes and facet upgrades) with a FOR-only quorum, plus a permissionless admin-election flow.
 - **Upgrades:** owner-direct `diamondCut` during a one-time bootstrap window, then governance-only via `FacetProposal`.
 
@@ -34,7 +34,7 @@ OpenAdverts (OAD) is an on-chain advertising-rewards protocol built on the [EIP-
 
 1. **Create.** An advertiser funds a prospect campaign in POL or USDC via a factory facet. Creation entrypoints are gated by a website-origin backend signature (one-time UID + deadline, replay-protected).
 2. **Approve.** Token holders vote to approve or deny prospective campaigns and affiliates. Approved affiliates (publishers) may then serve approved campaigns.
-3. **Engage & prove.** The backend signs viewer engagement proofs. Affiliates collect them and submit a batch (up to 200 signatures) to the campaign contract's `processReward`, which forwards to the Diamond for verification against the protocol signing key.
+3. **Engage & prove.** The backend signs viewer engagement proofs. The viewer collects them and submits one batch (at most `maxSignaturesPerBatch` signatures — default 50, governance range 1–75) to the campaign contract's `processReward`; a claim consumes the viewer's per-affiliate nonce, so a collecting session is redeemed in exactly one batch, which forwards to the Diamond for verification against the protocol signing key.
 4. **Distribute.** Each bounty is split between the viewer, the affiliate, and up to six third parties. A protocol commission (default 10%) is divided among the admin, the storage provider, and the OAD holder dividend pool. A failed transfer is escrowed for later pull rather than reverting the whole batch.
 
 USDC campaign minimums are computed as the POL-equivalent (via the Chainlink feed) plus a governance-controlled currency premium (genesis default 200%), which cushions POL/USD volatility so USDC claims stay profitable to withdraw.

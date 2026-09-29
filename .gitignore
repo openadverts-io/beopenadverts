@@ -13,6 +13,7 @@ deployed-addresses.json
 test/GasBenchmark/gasBaseline.json
 test/GasBenchmark/bcv2Baseline.json
 test/GasBenchmark/bcv2Report.html
+test/GasBenchmark/minAdvertBountyReport.html
 test/GasBenchmark/eventGasCost.json
 
 # Internal-only docs (agent briefs, FE/backend integration notes, full project docs).
