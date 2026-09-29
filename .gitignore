@@ -24,3 +24,6 @@ internal/
 
 # VS Code workspace file — local editor config, not published
 /beopenadverts.code-workspace
+
+# Local project-continuity tracker (CurrentState.md + daily DD-MM-YY.md logs) — never published
+/progress-notes/

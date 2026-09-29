@@ -143,6 +143,10 @@ describe('Secondary Signer Cutover', function () {
     const [, advertStatus] = await advertisersFacet.getAdvertisementDetailsAndStatus(advertAddr)
     expect(advertStatus).to.equal(1, 'Advertisement should be Approved before reward tests')
 
+    // blockPlan() signs recent past blocks (now-4 .. now-1); mine past the approval block so they
+    // are not rejected by the on-chain "Block number before advert approval" lower bound.
+    await mine(10)
+
     const polContract = await ethers.getContractAt('OpenAdvertsAdvertPOL', advertAddr)
     const chainId = (await ethers.provider.getNetwork()).chainId
 

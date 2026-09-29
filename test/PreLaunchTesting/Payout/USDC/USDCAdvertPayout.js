@@ -505,6 +505,109 @@ describe('USDC Advertisement Payout Tests', function () {
             expect((await mockUSDC.balanceOf(tp2)) - tp2Before).to.equal(expectedShare, 'third party 2 must receive registered 6%, not 0');
             expect((await mockUSDC.balanceOf(tp3)) - tp3Before).to.equal(expectedShare, 'third party 3 must receive registered 6%, not 0');
         }).timeout(300000);
+
+        /**
+         * Register + approve an affiliate and a USDC advert bound to it, then return a signer for
+         * a single-signature reward at an arbitrary engagement block (for the approval-block tests).
+         */
+        async function setupApprovedUSDCAdvertForApprovalTests() {
+            const fixture = await loadFixture(deployUSDCPayoutFixture);
+            const {
+                diamondAddress, usdcFactoryFacet, usdcPriceFacet, affiliatesFacet, affiliatesVotingFacet,
+                advertVotingFacet, payoutFacet, tokenFacet, governanceFacet, mockUSDC, claimProviderAddress,
+                owner, advertiser, affiliate, viewer, signingAddress, voter1, voter2, voter3, thirdParties
+            } = fixture;
+
+            const voterTokens = ethers.parseEther('5000000');
+            await tokenFacet.connect(owner).transfer(voter1.address, voterTokens);
+            await tokenFacet.connect(owner).transfer(voter2.address, voterTokens);
+            await tokenFacet.connect(owner).transfer(voter3.address, voterTokens);
+            await tokenFacet.connect(owner).transfer(advertiser.address, voterTokens);
+            await payoutFacet.connect(owner).changeStorageProviderAddress(ethers.ZeroAddress);
+
+            await affiliatesFacet.connect(affiliate).createProspectAffiliateContract(
+                affiliate.address, claimProviderAddress, signingAddress.address, 'USDC-APPROVAL-affiliate',
+                ...(await gate.affiliate(_gateSigner, _gateDiamond, affiliate.address)));
+            await advanceBlocksForVoting(15);
+            await affiliatesVotingFacet.connect(voter1).voteOnAffiliate(affiliate.address, true);
+            await affiliatesVotingFacet.connect(voter2).voteOnAffiliate(affiliate.address, true);
+            await affiliatesVotingFacet.connect(voter3).voteOnAffiliate(affiliate.address, true);
+            const [affiliateDetails] = await affiliatesFacet.getAffiliateDetailsAndStatus(affiliate.address);
+            const affiliateContractAddress = affiliateDetails.affiliateContractAddress;
+
+            const allQuotas = await governanceFacet.getAllCurrentQuotas();
+            const { minBountyUSDC, minFundingUSDC } = await usdcPriceFacet.calculateMinimumUSDCRequirements(
+                allQuotas.minAdvertBountyInPOLWei, allQuotas.minPOLRequiredforAdvertInWei, allQuotas.USDCCurrencyPremiumInPCT);
+            await mockUSDC.connect(advertiser).approve(diamondAddress, minFundingUSDC);
+            const createTx = await usdcFactoryFacet.connect(advertiser).createNewProspectUSDCAdvertContract(
+                'USDC-APPROVAL-advert', minBountyUSDC, 1, affiliateContractAddress, minFundingUSDC,
+                ...(await gate.usdc(_gateSigner, _gateDiamond, advertiser.address)));
+            const createReceipt = await createTx.wait();
+            const createEvent = createReceipt.logs.find(log => {
+                try { return usdcFactoryFacet.interface.parseLog(log).name === 'USDCAdvertCreated'; } catch { return false; }
+            });
+            const usdcAdvertAddress = usdcFactoryFacet.interface.parseLog(createEvent).args.advert;
+            const usdcContract = await ethers.getContractAt('OpenAdvertsAdvertUSDC', usdcAdvertAddress);
+            await advanceBlocksForVoting(15);
+            await advertVotingFacet.connect(voter1).voteOnAdvert(usdcAdvertAddress, true);
+            await advertVotingFacet.connect(voter2).voteOnAdvert(usdcAdvertAddress, true);
+            await advertVotingFacet.connect(voter3).voteOnAdvert(usdcAdvertAddress, true);
+            await mine(12);
+
+            const tpAddrs = [thirdParties[0].address, thirdParties[1].address, thirdParties[2].address];
+            const thirdPartyAddresses = [{ thirdPartyAddresses: tpAddrs }];
+            const currentNonce = await usdcContract.getUserNonceOfAffiliate(affiliateContractAddress);
+            const verificationData = {
+                affiliateReceivingAddress: affiliateContractAddress,
+                affiliateClaimInfoAddress: claimProviderAddress,
+                affiliateSigningAddress: signingAddress.address,
+                advertismentContractAddress: usdcAdvertAddress,
+                nonce: Number(currentNonce),
+                viewerAddress: ethers.ZeroAddress
+            };
+
+            const paddedHex = tpAddrs.map(a => ethers.zeroPadValue(a, 32)).join('').replace(/0x/g, '');
+            const tpHash = ethers.keccak256('0x' + paddedHex);
+            const chainId = (await ethers.provider.getNetwork()).chainId;
+            const signAtBlock = async (blockNumber) => {
+                const messageHash = ethers.solidityPackedKeccak256(
+                    ["uint256", "address", "address", "uint256", "uint256", "address", "address", "uint256", "bytes32", "uint256"],
+                    [chainId, _gateDiamond, viewer.address, BigInt(blockNumber), BigInt(verificationData.nonce), affiliateContractAddress, usdcAdvertAddress, 3n, tpHash, minBountyUSDC]
+                );
+                return new ethers.Wallet(signingAddress.privateKey).signMessage(ethers.getBytes(messageHash));
+            };
+
+            return { usdcContract, viewer, verificationData, thirdPartyAddresses, signAtBlock, mockUSDC, affiliate };
+        }
+
+        it('USDC-APPROVAL: rejects a reward whose block number precedes the advert approval block', async function () {
+            const { usdcContract, viewer, verificationData, thirdPartyAddresses, signAtBlock } =
+                await setupApprovedUSDCAdvertForApprovalTests();
+
+            // Set in processCommission() during the approval vote; must exceed minBlockNRSeparation
+            // so a block just below it still reaches the on-chain approval-block check.
+            const approvedBlock = await usdcContract.approvedBlock();
+            expect(approvedBlock).to.be.greaterThan(1n);
+
+            const preApprovalBlock = approvedBlock - 1n;
+            const signature = await signAtBlock(preApprovalBlock);
+
+            await expect(
+                usdcContract.connect(viewer).processReward([signature], [preApprovalBlock], verificationData, thirdPartyAddresses)
+            ).to.be.revertedWith('Block number before advert approval');
+        }).timeout(300000);
+
+        it('USDC-APPROVAL: accepts a reward whose block number equals the advert approval block (inclusive lower bound)', async function () {
+            const { usdcContract, viewer, verificationData, thirdPartyAddresses, signAtBlock, mockUSDC, affiliate } =
+                await setupApprovedUSDCAdvertForApprovalTests();
+
+            const approvedBlock = await usdcContract.approvedBlock();
+            const signature = await signAtBlock(approvedBlock);
+
+            const affBefore = await mockUSDC.balanceOf(affiliate.address);
+            await usdcContract.connect(viewer).processReward([signature], [approvedBlock], verificationData, thirdPartyAddresses);
+            expect(await mockUSDC.balanceOf(affiliate.address)).to.be.greaterThan(affBefore);
+        }).timeout(300000);
     });
 
     describe('Error Handling & Edge Cases', function () {

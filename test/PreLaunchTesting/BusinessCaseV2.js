@@ -1090,6 +1090,9 @@ describe('Business Case V2 — Gas Costs, Profitability & Lifecycle Accounting',
       await advertVote.connect(voter3).voteOnAdvert(usdcAdvertAddr, true)
 
       // ── 3. Build TP matrix & signatures ────────────────────────────────
+      // Mine past the approval block: createSignaturesBatch signs the SIG_COUNT blocks
+      // preceding curBlock, and claimReward rejects engagement blocks before advert approval.
+      await mine(SIG_COUNT + 50)
       const nonce    = await usdcContract.getUserNonceOfAffiliate(designatedAffiliateAddress)
       const curBlock = await ethers.provider.getBlockNumber()
       const tpMatrix = buildTPMatrix(SIG_COUNT, TP_COUNT, false)
@@ -1217,6 +1220,10 @@ describe('Business Case V2 — Gas Costs, Profitability & Lifecycle Accounting',
       await advertVote.connect(voter1).voteOnAdvert(usdcAdvertAddr, true)
       await advertVote.connect(voter2).voteOnAdvert(usdcAdvertAddr, true)
       await advertVote.connect(voter3).voteOnAdvert(usdcAdvertAddr, true)
+
+      // Mine past the approval block: createSignaturesBatch signs the SIG_COUNT blocks
+      // preceding curBlock, and claimReward rejects engagement blocks before advert approval.
+      await mine(SIG_COUNT + 50)
 
       // Build 0-TP signatures
       const nonce    = await usdcContract.getUserNonceOfAffiliate(designatedAffiliateAddress)

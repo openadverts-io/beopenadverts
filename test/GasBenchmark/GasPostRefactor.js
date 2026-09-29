@@ -189,6 +189,10 @@ async function deployGasFixture (mockProviderContractName) {
   await advertVoteFacet.connect(voter2).voteOnAdvert(polAdvertAddress, true)
   await advertVoteFacet.connect(voter3).voteOnAdvert(polAdvertAddress, true)
 
+  // runScenario signs the sigCount blocks preceding the current block (max 50); mine past the
+  // approval block so they are not rejected by the "Block number before advert approval" bound.
+  await mine(60)
+
   const polContract = await ethers.getContractAt('OpenAdvertsAdvertPOL', polAdvertAddress)
 
   return {
